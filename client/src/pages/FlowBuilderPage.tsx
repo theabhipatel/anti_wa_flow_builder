@@ -3,13 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     ReactFlow,
+    ReactFlowProvider,
     Background,
     Controls,
     MiniMap,
+    useReactFlow,
     type Node,
     type Edge,
     type Connection,
     type NodeTypes,
+    type EdgeTypes,
     type OnNodesChange,
     type OnEdgesChange,
     type OnConnect,
@@ -24,9 +27,12 @@ import { RootState } from '../store';
 import { setFlowData, markSaved, selectNode, updateNodeConfig, updateNodeLabel, deleteNode } from '../store/builderSlice';
 import { IFlowData, IFlowNode, IValidationResult, TNodeType } from '../types';
 import FlowNode from '../components/FlowBuilder/FlowNode';
+import DeletableEdge from '../components/FlowBuilder/DeletableEdge';
 import NodeLibrary from '../components/FlowBuilder/NodeLibrary';
 import NodeSettingsPanel from '../components/FlowBuilder/NodeSettingsPanel';
 import SimulatorPanel from '../components/FlowBuilder/SimulatorPanel';
+import ConfirmModal from '../components/FlowBuilder/ConfirmModal';
+import { autoLayoutNodes } from '../utils/autoLayout';
 import {
     Save,
     ArrowLeft,
@@ -35,13 +41,15 @@ import {
     CheckCircle,
     AlertTriangle,
     MessageSquare,
+    LayoutGrid,
 } from 'lucide-react';
 
-export default function FlowBuilderPage() {
+function FlowBuilderInner() {
     const { botId, flowId } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const { flowData, isDirty, selectedNodeId, lastSaved } = useSelector((state: RootState) => state.builder);
+    const { fitView, getNodes: getRfNodes, getEdges: getRfEdges } = useReactFlow();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -50,12 +58,84 @@ export default function FlowBuilderPage() {
     const [showSimulator, setShowSimulator] = useState(false);
     const [flowName, setFlowName] = useState('');
 
+    // Confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        variant?: 'danger' | 'warning';
+        confirmLabel?: string;
+    }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
     // React Flow state — typed explicitly
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
 
+    // --- Callbacks passed into node data ---
+    const handleNodeDuplicate = useCallback((nodeId: string) => {
+        setNodes((nds) => {
+            const sourceNode = nds.find((n) => n.id === nodeId);
+            if (!sourceNode) return nds;
+
+            const newNodeId = `${(sourceNode.data as Record<string, unknown>).nodeType as string}_${Date.now()}`.toLowerCase();
+            const duplicated: Node = {
+                id: newNodeId,
+                type: 'flowNode',
+                position: {
+                    x: sourceNode.position.x + 60,
+                    y: sourceNode.position.y + 80,
+                },
+                data: {
+                    ...(sourceNode.data as Record<string, unknown>),
+                    label: `${(sourceNode.data as Record<string, unknown>).label} (copy)`,
+                    nodeId: newNodeId,
+                },
+            };
+            return [...nds, duplicated];
+        });
+    }, []);
+
+    const requestDeleteNode = useCallback((nodeId: string) => {
+        setNodes((nds) => {
+            const node = nds.find((n) => n.id === nodeId);
+            const label = node ? (node.data as Record<string, unknown>).label as string || nodeId : nodeId;
+
+            setConfirmModal({
+                isOpen: true,
+                title: 'Delete Node',
+                message: `Are you sure you want to delete "${label}"? This will also remove all connections to and from this node. This action cannot be undone.`,
+                variant: 'danger',
+                confirmLabel: 'Delete Node',
+                onConfirm: () => {
+                    performDeleteNode(nodeId);
+                    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                },
+            });
+            return nds;
+        });
+    }, []);
+
+    const performDeleteNode = useCallback((nodeId: string) => {
+        dispatch(deleteNode(nodeId));
+        dispatch(selectNode(null));
+        setNodes((nds) => nds.filter((n: Node) => n.id !== nodeId));
+        setEdges((eds) => eds.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
+    }, [dispatch]);
+
+    // --- Edge deletion ---
+    const handleEdgeDelete = useCallback((edgeId: string) => {
+        setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+    }, []);
+
+    // Node types memoized
     const nodeTypes: NodeTypes = useMemo(() => ({
         flowNode: FlowNode,
+    }), []);
+
+    // Edge types memoized
+    const edgeTypes: EdgeTypes = useMemo(() => ({
+        deletable: DeletableEdge,
     }), []);
 
     // Load flow data
@@ -92,6 +172,9 @@ export default function FlowBuilderPage() {
                 nodeType: n.nodeType,
                 config: n.config,
                 description: n.description,
+                nodeId: n.nodeId,
+                onDuplicate: handleNodeDuplicate,
+                onDelete: requestDeleteNode,
             },
         }));
         const rfEdges: Edge[] = data.edges.map((e) => ({
@@ -100,8 +183,10 @@ export default function FlowBuilderPage() {
             target: e.targetNodeId,
             sourceHandle: e.sourceHandle,
             targetHandle: e.targetHandle,
+            type: 'deletable',
             animated: true,
-            style: { stroke: '#6366f1', strokeWidth: 2 },
+            style: { stroke: '#818cf8', strokeWidth: 2.5 },
+            data: { onDelete: handleEdgeDelete },
         }));
         setNodes(rfNodes);
         setEdges(rfEdges);
@@ -145,13 +230,15 @@ export default function FlowBuilderPage() {
                 {
                     ...connection,
                     id: `edge_${Date.now()}`,
+                    type: 'deletable',
                     animated: true,
-                    style: { stroke: '#6366f1', strokeWidth: 2 },
+                    style: { stroke: '#818cf8', strokeWidth: 2.5 },
+                    data: { onDelete: handleEdgeDelete },
                 },
                 eds
             )
         );
-    }, [setEdges]);
+    }, [setEdges, handleEdgeDelete]);
 
     // Handle node selection
     const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -162,7 +249,7 @@ export default function FlowBuilderPage() {
         dispatch(selectNode(null));
     }, [dispatch]);
 
-    // Add new node from library
+    // Add new node from library — inject callbacks
     const onAddNode = useCallback((nodeType: TNodeType) => {
         const newNodeId = `${nodeType.toLowerCase()}_${Date.now()}`;
         const newNode: Node = {
@@ -173,10 +260,25 @@ export default function FlowBuilderPage() {
                 label: nodeType.charAt(0) + nodeType.slice(1).toLowerCase(),
                 nodeType,
                 config: {},
+                nodeId: newNodeId,
+                onDuplicate: handleNodeDuplicate,
+                onDelete: requestDeleteNode,
             },
         };
         setNodes((nds) => [...nds, newNode]);
-    }, [setNodes]);
+    }, [setNodes, handleNodeDuplicate, requestDeleteNode]);
+
+    // --- Auto-arrange nodes ---
+    const handleAutoArrange = useCallback(() => {
+        const currentNodes = getRfNodes();
+        const currentEdges = getRfEdges();
+        const { nodes: layoutNodes } = autoLayoutNodes(currentNodes, currentEdges);
+        setNodes(layoutNodes);
+        // Fit view after React Flow rerenders with new positions
+        setTimeout(() => {
+            fitView({ padding: 0.15, duration: 500 });
+        }, 50);
+    }, [getRfNodes, getRfEdges, setNodes, fitView]);
 
     // Save draft
     const handleSave = async () => {
@@ -206,27 +308,35 @@ export default function FlowBuilderPage() {
         }
     };
 
-    // Deploy
+    // Deploy — uses custom confirm modal instead of browser confirm()
     const handleDeploy = async () => {
-        if (!confirm('Deploy this flow to production?')) return;
-        setDeploying(true);
-        await handleSave();
-        try {
-            const res = await api.post(`/bots/${botId}/flows/${flowId}/deploy`);
-            if (res.data.success) {
-                setValidation({ isValid: true, errors: [], warnings: [] });
-                alert('Flow deployed to production! 🚀');
-            } else {
-                setValidation(res.data.data);
-            }
-        } catch (err: unknown) {
-            const axiosErr = err as { response?: { data?: { data?: IValidationResult; error?: string } } };
-            if (axiosErr.response?.data?.data) {
-                setValidation(axiosErr.response.data.data);
-            }
-        } finally {
-            setDeploying(false);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: 'Deploy to Production',
+            message: 'This will replace the currently running flow with this draft. All active sessions will be reset. Are you sure you want to deploy?',
+            variant: 'warning',
+            confirmLabel: 'Deploy',
+            onConfirm: async () => {
+                setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                setDeploying(true);
+                await handleSave();
+                try {
+                    const res = await api.post(`/bots/${botId}/flows/${flowId}/deploy`);
+                    if (res.data.success) {
+                        setValidation({ isValid: true, errors: [], warnings: [] });
+                    } else {
+                        setValidation(res.data.data);
+                    }
+                } catch (err: unknown) {
+                    const axiosErr = err as { response?: { data?: { data?: IValidationResult; error?: string } } };
+                    if (axiosErr.response?.data?.data) {
+                        setValidation(axiosErr.response.data.data);
+                    }
+                } finally {
+                    setDeploying(false);
+                }
+            },
+        });
     };
 
     // Handle node updates from settings panel
@@ -251,9 +361,7 @@ export default function FlowBuilderPage() {
     };
 
     const handleDeleteNode = (nodeId: string) => {
-        dispatch(deleteNode(nodeId));
-        setNodes((nds) => nds.filter((n: Node) => n.id !== nodeId));
-        setEdges((eds) => eds.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
+        requestDeleteNode(nodeId);
     };
 
     const selectedNode = nodes.find((n: Node) => n.id === selectedNodeId);
@@ -327,20 +435,57 @@ export default function FlowBuilderPage() {
                         onNodeClick={onNodeClick}
                         onPaneClick={onPaneClick}
                         nodeTypes={nodeTypes}
+                        edgeTypes={edgeTypes}
+                        defaultEdgeOptions={{
+                            type: 'deletable',
+                            animated: true,
+                            style: { stroke: '#818cf8', strokeWidth: 2.5 },
+                        }}
                         fitView
                         snapToGrid
-                        snapGrid={[15, 15]}
+                        snapGrid={[20, 20]}
                         deleteKeyCode="Delete"
+                        proOptions={{ hideAttribution: true }}
                     >
-                        <Background variant={BackgroundVariant.Dots} gap={15} size={1} />
-                        <Controls className="!rounded-xl !border-surface-200 dark:!border-surface-700 !bg-white dark:!bg-surface-800 !shadow-lg" />
-                        <MiniMap
+                        <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="#cbd5e1" />
+                        <Controls
                             className="!rounded-xl !border-surface-200 dark:!border-surface-700 !bg-white dark:!bg-surface-800 !shadow-lg"
+                            showInteractive={false}
+                        />
+                        <MiniMap
+                            className="!rounded-xl !border-surface-200 dark:!border-surface-700 !bg-white/90 dark:!bg-surface-800/90 !shadow-lg !backdrop-blur-sm"
                             nodeStrokeWidth={3}
                             pannable
                             zoomable
+                            maskColor="rgba(0,0,0,0.05)"
                         />
                     </ReactFlow>
+
+                    {/* Auto-arrange floating button */}
+                    <div className="absolute top-4 left-4 z-10">
+                        <button
+                            onClick={handleAutoArrange}
+                            className="
+                                group flex items-center gap-2
+                                px-3.5 py-2.5 rounded-xl
+                                bg-white/90 dark:bg-surface-800/90
+                                backdrop-blur-md
+                                border border-surface-200 dark:border-surface-700
+                                shadow-lg shadow-black/5 dark:shadow-black/20
+                                hover:bg-white dark:hover:bg-surface-700
+                                hover:shadow-xl hover:shadow-brand-500/10
+                                hover:border-brand-300 dark:hover:border-brand-600
+                                transition-all duration-200
+                                active:scale-95
+                            "
+                            title="Auto-arrange all nodes"
+                        >
+                            <LayoutGrid className="w-4 h-4 text-brand-500 group-hover:text-brand-600 transition-colors" />
+                            <span className="text-xs font-semibold text-surface-600 dark:text-surface-300 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                                Auto Arrange
+                            </span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Settings panel */}
@@ -363,6 +508,25 @@ export default function FlowBuilderPage() {
                     />
                 )}
             </div>
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant}
+                confirmLabel={confirmModal.confirmLabel}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+            />
         </div>
+    );
+}
+
+export default function FlowBuilderPage() {
+    return (
+        <ReactFlowProvider>
+            <FlowBuilderInner />
+        </ReactFlowProvider>
     );
 }
