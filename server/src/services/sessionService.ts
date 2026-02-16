@@ -11,6 +11,8 @@ export const findOrCreateSession = async (
     flowVersionId: Types.ObjectId,
     isTest: boolean = false
 ): Promise<ISession> => {
+    console.log(`[Session] Looking for existing session: bot=${botId}, phone=${userPhoneNumber}, test=${isTest}`);
+
     // Look for an existing active/paused session
     let session = await Session.findOne({
         botId,
@@ -19,12 +21,16 @@ export const findOrCreateSession = async (
     }).sort({ createdAt: -1 });
 
     if (session) {
+        console.log(`[Session] ✅ Found existing session: ${session._id} (status: ${session.status}, currentNode: ${session.currentNodeId})`);
         return session;
     }
+
+    console.log(`[Session] No existing session found — creating new one`);
 
     // Create a new session
     const flowVersion = await FlowVersion.findById(flowVersionId);
     if (!flowVersion) {
+        console.error(`[Session] ❌ Flow version not found: ${flowVersionId}`);
         throw new Error('Flow version not found');
     }
 
@@ -32,6 +38,7 @@ export const findOrCreateSession = async (
     const flowData = flowVersion.flowData;
     const startNode = flowData.nodes.find((n) => n.nodeType === 'START');
     if (!startNode) {
+        console.error(`[Session] ❌ Flow has no START node! Node types found: ${flowData.nodes.map(n => n.nodeType).join(', ')}`);
         throw new Error('Flow has no Start node');
     }
 
@@ -44,6 +51,7 @@ export const findOrCreateSession = async (
         isTest,
     });
 
+    console.log(`[Session] ✅ Created new session: ${session._id} (startNode: ${startNode.nodeId})`);
     return session;
 };
 

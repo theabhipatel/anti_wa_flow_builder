@@ -10,7 +10,7 @@ interface Props {
 
 interface IMessage {
     id: string;
-    role: 'user' | 'bot';
+    role: 'user' | 'bot' | 'system';
     text: string;
     buttons?: Array<{ id: string; label: string }>;
     timestamp: Date;
@@ -26,9 +26,14 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Auto-start the flow
+    // Show welcome prompt instead of auto-starting the flow
     useEffect(() => {
-        sendMessage('');
+        setMessages([{
+            id: `system_${Date.now()}`,
+            role: 'system',
+            text: '💬 Send a message (e.g. "hi") to start the flow.',
+            timestamp: new Date(),
+        }]);
     }, []);
 
     const sendMessage = async (text: string, buttonId?: string) => {
@@ -76,9 +81,12 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
     const handleReset = async () => {
         try {
             await api.post('/simulator/reset', { botId });
-            setMessages([]);
-            // Restart
-            setTimeout(() => sendMessage(''), 300);
+            setMessages([{
+                id: `system_${Date.now()}`,
+                role: 'system',
+                text: '🔄 Session reset. Send a message to start the flow again.',
+                timestamp: new Date(),
+            }]);
         } catch (err) {
             console.error(err);
         }
@@ -112,34 +120,36 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-surface-50 dark:bg-surface-950">
-                {messages.length === 0 && !loading && (
-                    <div className="text-center text-surface-400 text-sm py-8">
-                        Starting flow simulation...
-                    </div>
-                )}
-
                 {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] ${msg.role === 'user'
-                            ? 'bg-brand-500 text-white rounded-2xl rounded-br-md px-3 py-2'
-                            : 'bg-white dark:bg-surface-800 rounded-2xl rounded-bl-md px-3 py-2 shadow-sm border border-surface-200 dark:border-surface-700'
-                            }`}>
-                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                            {msg.buttons && msg.buttons.length > 0 && (
-                                <div className="mt-2 space-y-1.5">
-                                    {msg.buttons.map((btn) => (
-                                        <button
-                                            key={btn.id}
-                                            onClick={() => sendMessage(btn.label, btn.id)}
-                                            disabled={loading}
-                                            className="w-full text-left text-xs px-3 py-2 rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors border border-brand-200 dark:border-brand-800"
-                                        >
-                                            {btn.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        {msg.role === 'system' ? (
+                            <div className="w-full text-center py-3">
+                                <p className="text-xs text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 rounded-full px-4 py-1.5 inline-block">
+                                    {msg.text}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className={`max-w-[85%] ${msg.role === 'user'
+                                ? 'bg-brand-500 text-white rounded-2xl rounded-br-md px-3 py-2'
+                                : 'bg-white dark:bg-surface-800 rounded-2xl rounded-bl-md px-3 py-2 shadow-sm border border-surface-200 dark:border-surface-700'
+                                }`}>
+                                <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                                {msg.buttons && msg.buttons.length > 0 && (
+                                    <div className="mt-2 space-y-1.5">
+                                        {msg.buttons.map((btn) => (
+                                            <button
+                                                key={btn.id}
+                                                onClick={() => sendMessage(btn.label, btn.id)}
+                                                disabled={loading}
+                                                className="w-full text-left text-xs px-3 py-2 rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors border border-brand-200 dark:border-brand-800"
+                                            >
+                                                {btn.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 ))}
 

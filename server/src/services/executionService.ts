@@ -43,11 +43,20 @@ export const executeFlow = async (
     incomingButtonId?: string,
     isSimulator: boolean = false
 ): Promise<{ responses: Array<{ type: string; content: string; buttons?: Array<{ id: string; label: string }> }> }> => {
+    const mode = isSimulator ? '🧪 SIMULATOR' : '📱 WHATSAPP';
+    console.log(`\n[Execution] ${mode} — executeFlow called`);
+    console.log(`  Session ID: ${session._id}`);
+    console.log(`  Current node: ${session.currentNodeId}`);
+    console.log(`  Incoming message: "${incomingMessage || '(none)'}"`);
+    console.log(`  Incoming button ID: "${incomingButtonId || '(none)'}"`);
+
     // Load flow version
     const flowVersion = await FlowVersion.findById(session.flowVersionId);
     if (!flowVersion) {
+        console.error(`[Execution] ❌ Flow version not found: ${session.flowVersionId}`);
         throw new Error('Flow version not found');
     }
+    console.log(`[Execution] ✅ Loaded flow version v${flowVersion.versionNumber} (nodes: ${flowVersion.flowData?.nodes?.length}, edges: ${flowVersion.flowData?.edges?.length})`);
 
     // Get WhatsApp credentials if not simulator
     let phoneNumberId: string | undefined;
@@ -58,6 +67,9 @@ export const executeFlow = async (
         if (waAccount) {
             phoneNumberId = waAccount.phoneNumberId;
             accessToken = decrypt(waAccount.accessToken);
+            console.log(`[Execution] ✅ WhatsApp credentials loaded (phoneNumberId: ${phoneNumberId})`);
+        } else {
+            console.error(`[Execution] ❌ No WhatsApp account found — cannot send messages!`);
         }
     }
 
@@ -86,6 +98,7 @@ export const executeFlow = async (
     // Execute the current node
     await executeNode(context);
 
+    console.log(`[Execution] ${mode} — Flow execution finished. Simulator responses: ${context.simulatorResponses.length}`);
     return { responses: context.simulatorResponses };
 };
 
@@ -96,14 +109,20 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
     const { session, flowData } = context;
     const currentNodeId = session.currentNodeId;
 
-    if (!currentNodeId) return;
+    if (!currentNodeId) {
+        console.log(`[Execution] ⚠️ No current node ID — stopping`);
+        return;
+    }
 
     const node = flowData.nodes.find((n) => n.nodeId === currentNodeId);
     if (!node) {
-        console.error(`[Execution] Node ${currentNodeId} not found in flow`);
+        console.error(`[Execution] ❌ Node "${currentNodeId}" not found in flow data`);
+        console.error(`  Available nodes: ${flowData.nodes.map(n => `${n.nodeId}(${n.nodeType})`).join(', ')}`);
         await sessionService.updateSessionState(session._id, { status: 'FAILED' });
         return;
     }
+
+    console.log(`[Execution] ▶️ Executing node: "${node.nodeId}" (type: ${node.nodeType})`);
 
     const startTime = Date.now();
     let nextNodeId: string | undefined;
@@ -140,6 +159,7 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
                 break;
             case 'END':
                 await executeEndNode(context, node);
+                console.log(`[Execution] 🏁 END node reached — stopping`);
                 return; // Stop execution
             case 'GOTO_SUBFLOW':
                 nextNodeId = await executeGotoSubflowNode(context, node);
@@ -147,7 +167,7 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
         }
     } catch (err) {
         error = err instanceof Error ? err.message : String(err);
-        console.error(`[Execution] Error in node ${node.nodeId}:`, error);
+        console.error(`[Execution] ❌ Error in node "${node.nodeId}" (${node.nodeType}):`, error);
     }
 
     // Log execution
@@ -162,21 +182,23 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
         executedAt: new Date(),
     });
 
-    // If we have a next node and it's not a pausing node, continue execution
+    console.log(`[Execution] ${node.nodeType} "${node.nodeId}" → next: "${nextNodeId || '(none/paused)'}" (${duration}ms)`);
+
+    // If we have a next node, continue execution
     if (nextNodeId && !error) {
         session.currentNodeId = nextNodeId;
         await sessionService.updateSessionState(session._id, { currentNodeId: nextNodeId });
 
-        // Check if the next node is a pausing node (BUTTON, INPUT, DELAY)
         const nextNode = flowData.nodes.find((n) => n.nodeId === nextNodeId);
-        if (nextNode && !isPausingNode(nextNode.nodeType)) {
-            await executeNode(context);
-        } else if (nextNode && nextNode.nodeType === 'DELAY') {
-            // Delay pauses but we still process the delay setup
+        if (nextNode) {
+            // Always execute the next node — pausing nodes (BUTTON, INPUT) handle their
+            // own pause logic internally by sending their prompt and returning undefined
+            console.log(`[Execution] ➡️ Chaining to next node: "${nextNodeId}" (${nextNode.nodeType})`);
             await executeNode(context);
         }
     } else if (!nextNodeId && !error) {
         // No next node — check if we need to return from a subflow
+        console.log(`[Execution] 🔚 No next node — checking for subflow return`);
         await handleSubflowReturn(context);
     }
 };
@@ -190,10 +212,12 @@ const isPausingNode = (nodeType: string): boolean => {
 // ============================================================
 
 const executeStartNode = async (context: IExecutionContext, node: IFlowNode): Promise<string | undefined> => {
-    const config = node.config as IStartNodeConfig;
+    const config = (node.config || {}) as IStartNodeConfig;
     // Find next node from edges
     const nextEdge = context.flowData.edges.find((e) => e.sourceNodeId === node.nodeId);
-    return config.nextNodeId || nextEdge?.targetNodeId;
+    const nextNodeId = config?.nextNodeId || nextEdge?.targetNodeId;
+    console.log(`[Execution] START node → nextNodeId from config: ${config?.nextNodeId || '(none)'}, from edge: ${nextEdge?.targetNodeId || '(none)'}`);
+    return nextNodeId;
 };
 
 const executeMessageNode = async (context: IExecutionContext, node: IFlowNode): Promise<string | undefined> => {
