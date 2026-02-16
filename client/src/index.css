@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-color: #e2e8f0;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+}
+
+.dark {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --border-color: #334155;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+/* React Flow overrides */
+.react-flow__node {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.react-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #6366f1 !important;
+  border: 2px solid white !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2 !important;
+}
+
+.react-flow__background {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Glass morphism cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated border */
+.animated-border {
+  position: relative;
+  border: 1px solid transparent;
+  background: linear-gradient(var(--bg-primary), var(--bg-primary)) padding-box,
+    linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7) border-box;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98];
+}
+
+.btn-secondary {
+  @apply bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 text-surface-800 dark:text-surface-200 font-medium px-4 py-2 rounded-lg transition-all duration-200;
+}
+
+.btn-danger {
+  @apply bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200;
+}
+
+/* Input styles */
+.input-field {
+  @apply w-full px-3 py-2 bg-white dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200;
+}
+
+.input-label {
+  @apply block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
+}
+
+/* Sidebar */
+.sidebar-link {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700/50 hover:text-surface-900 dark:hover:text-surface-200;
+}
+
+.sidebar-link.active {
+  @apply bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400;
+}
+
+/* Node styles */
+.flow-node {
+  @apply rounded-xl shadow-lg border-2 transition-all duration-200;
+  min-width: 200px;
+}
+
+.flow-node:hover {
+  @apply shadow-xl;
+}
+
+.flow-node.selected {
+  @apply ring-2 ring-brand-500 ring-offset-2;
+}
