@@ -22,8 +22,14 @@ export const startDelayCron = (): void => {
                     session.resumeAt = undefined;
                     await session.save();
 
-                    // Resume execution
-                    await executionService.executeFlow(session);
+                    // Check if this is a simulator (test) session
+                    const isSimulator = session.isTest === true;
+                    console.log(`[DelayCron] Resuming session ${session._id} (isSimulator: ${isSimulator})`);
+
+                    // Resume execution with the correct isSimulator flag
+                    // Note: executeMessageNode/executeButtonNode already store messages in DB,
+                    // so the frontend can poll for them via the /simulator/poll endpoint.
+                    await executionService.executeFlow(session, undefined, undefined, isSimulator);
                 } catch (error) {
                     console.error(`[DelayCron] Error resuming session ${session._id}:`, error);
                 }
@@ -35,3 +41,4 @@ export const startDelayCron = (): void => {
 
     console.log('[DelayCron] Delay node cron job started (every 10s)');
 };
+

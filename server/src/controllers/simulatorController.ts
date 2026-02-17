@@ -128,3 +128,70 @@ export const getSimulatorLogs = async (req: Request, res: Response, next: NextFu
         next(error);
     }
 };
+
+/**
+ * Poll for new simulator messages (used after DELAY nodes resume)
+ * The frontend calls this periodically when the session is paused with a delay
+ */
+export const pollSimulatorMessages = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const userId = req.user!.userId;
+        const { botId, since } = req.query;
+
+        if (!botId) {
+            res.status(400).json({ success: false, error: 'botId is required' });
+            return;
+        }
+
+        const bot = await Bot.findOne({ _id: botId, userId });
+        if (!bot) {
+            res.status(404).json({ success: false, error: 'Bot not found' });
+            return;
+        }
+
+        const testPhone = '+1000000000';
+
+        // Find the current test session
+        const session = await Session.findOne({
+            botId,
+            userPhoneNumber: testPhone,
+            isTest: true,
+            status: { $in: ['ACTIVE', 'PAUSED'] },
+        }).sort({ createdAt: -1 });
+
+        if (!session) {
+            res.json({
+                success: true,
+                data: { messages: [], sessionStatus: null, isWaiting: false },
+            });
+            return;
+        }
+
+        // Get new messages since the given timestamp
+        const sinceDate = since ? new Date(since as string) : new Date(0);
+        const newMessages = await Message.find({
+            sessionId: session._id,
+            sender: 'BOT',
+            sentAt: { $gt: sinceDate },
+        }).sort({ sentAt: 1 });
+
+        // Format messages for the simulator
+        const responses = newMessages.map((msg) => ({
+            type: msg.messageType === 'BUTTON' ? 'button' : 'text',
+            content: msg.messageContent || '',
+            sentAt: msg.sentAt,
+        }));
+
+        res.json({
+            success: true,
+            data: {
+                messages: responses,
+                sessionStatus: session.status,
+                isWaiting: session.status === 'PAUSED' && !!session.resumeAt,
+                resumeAt: session.resumeAt,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};

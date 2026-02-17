@@ -780,8 +780,37 @@ const executeDelayNode = async (context: IExecutionContext, node: IFlowNode): Pr
         currentNodeId: nextNodeId || node.nodeId,
     });
 
-    return undefined; // Pause — cron will resume
+    // Schedule precise in-process resumption via setTimeout
+    // This fires exactly when the delay expires — no waiting for cron.
+    // The cron (every 10s) acts as a fallback if the server restarts during delay.
+    const sessionId = context.session._id;
+    const isSimulator = context.isSimulator;
+
+    console.log(`[Execution] ⏳ DELAY scheduled: ${seconds}s (${delayMs}ms), resumeAt: ${resumeAt.toISOString()}`);
+
+    setTimeout(async () => {
+        try {
+            const freshSession = await Session.findById(sessionId);
+            if (!freshSession || freshSession.status !== 'PAUSED' || !freshSession.resumeAt) {
+                // Already resumed by cron or session was closed/reset
+                console.log(`[DelayTimer] Session ${sessionId} already processed, skipping`);
+                return;
+            }
+
+            console.log(`[DelayTimer] ⏰ Timer fired — resuming session ${sessionId} (isSimulator: ${isSimulator})`);
+            freshSession.status = 'ACTIVE';
+            freshSession.resumeAt = undefined;
+            await freshSession.save();
+
+            await executeFlow(freshSession, undefined, undefined, isSimulator);
+        } catch (err) {
+            console.error(`[DelayTimer] Error resuming session ${sessionId}:`, err);
+        }
+    }, delayMs);
+
+    return undefined; // Pause — setTimeout (or cron fallback) will resume
 };
+
 
 const executeApiNode = async (context: IExecutionContext, node: IFlowNode): Promise<string | undefined> => {
     const config = node.config as IApiNodeConfig;

@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
-import { X, Send, RotateCcw, Loader2, Bot, User } from 'lucide-react';
+import { X, Send, RotateCcw, Loader2, Bot, User, Clock } from 'lucide-react';
 
 interface Props {
     botId: string;
@@ -20,7 +20,13 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
     const [messages, setMessages] = useState<IMessage[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isWaitingForDelay, setIsWaitingForDelay] = useState(false);
+    const [resumeAt, setResumeAt] = useState<Date | null>(null);
+    const [countdown, setCountdown] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const lastPollTimeRef = useRef<string | null>(null);
+    const pollAttemptsRef = useRef(0);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,6 +40,134 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
             text: '💬 Send a message (e.g. "hi") to start the flow.',
             timestamp: new Date(),
         }]);
+    }, []);
+
+    // Countdown timer for delay
+    useEffect(() => {
+        if (!resumeAt) {
+            setCountdown('');
+            return;
+        }
+
+        const updateCountdown = () => {
+            const now = Date.now();
+            const target = new Date(resumeAt).getTime();
+            const diff = Math.max(0, target - now);
+
+            if (diff <= 0) {
+                setCountdown('Resuming...');
+                return;
+            }
+
+            const secs = Math.ceil(diff / 1000);
+            if (secs >= 60) {
+                const mins = Math.floor(secs / 60);
+                const remainSecs = secs % 60;
+                setCountdown(`${mins}m ${remainSecs}s`);
+            } else {
+                setCountdown(`${secs}s`);
+            }
+        };
+
+        updateCountdown();
+        const timer = setInterval(updateCountdown, 1000);
+        return () => clearInterval(timer);
+    }, [resumeAt]);
+
+    // Stop polling helper
+    const stopPolling = useCallback(() => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+        pollAttemptsRef.current = 0;
+        setIsWaitingForDelay(false);
+        setResumeAt(null);
+    }, []);
+
+    // Polling for delayed messages
+    const pollForMessages = useCallback(async () => {
+        try {
+            pollAttemptsRef.current += 1;
+
+            // Safety: stop polling after 20 attempts (~60s) to prevent infinite polling
+            if (pollAttemptsRef.current > 20) {
+                console.log('[Simulator] Max poll attempts reached, stopping');
+                stopPolling();
+                return;
+            }
+
+            const since = lastPollTimeRef.current || new Date(0).toISOString();
+            const res = await api.get('/simulator/poll', {
+                params: { botId, since },
+            });
+
+            if (res.data.success && res.data.data) {
+                const { messages: newMsgs, isWaiting, resumeAt: newResumeAt } = res.data.data;
+
+                // Update delay countdown info
+                if (isWaiting) {
+                    setResumeAt(newResumeAt ? new Date(newResumeAt) : null);
+                }
+
+                // If we got new messages, display them and stop polling
+                if (newMsgs && newMsgs.length > 0) {
+                    const botMessages: IMessage[] = newMsgs.map((r: { type: string; content: string; sentAt: string }, i: number) => ({
+                        id: `delayed_${Date.now()}_${i}`,
+                        role: 'bot' as const,
+                        text: r.content,
+                        timestamp: new Date(r.sentAt),
+                    }));
+                    setMessages((prev) => [...prev, ...botMessages]);
+
+                    // Update the poll time to the latest message time
+                    const latestTime = newMsgs[newMsgs.length - 1].sentAt;
+                    lastPollTimeRef.current = latestTime;
+
+                    // Messages received! Stop polling.
+                    stopPolling();
+                    return;
+                }
+
+                // No new messages yet — if delay is no longer waiting (cron has cleared resumeAt
+                // but may still be executing the flow), keep polling a bit more
+                if (!isWaiting) {
+                    setCountdown('Resuming...');
+                    // Don't stop! The cron may still be running executeFlow.
+                    // The max attempts check above will handle the safety timeout.
+                }
+            }
+        } catch (err) {
+            console.error('[Simulator] Poll error:', err);
+        }
+    }, [botId, stopPolling]);
+
+    // Start/stop polling based on delay state
+    useEffect(() => {
+        if (isWaitingForDelay && !pollIntervalRef.current) {
+            // Record the time so we only get new messages
+            lastPollTimeRef.current = new Date().toISOString();
+            pollAttemptsRef.current = 0;
+            pollIntervalRef.current = setInterval(pollForMessages, 1500);
+        }
+
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
+        };
+    }, [isWaitingForDelay, pollForMessages]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
+        };
+
     }, []);
 
     const sendMessage = async (text: string, buttonId?: string) => {
@@ -66,6 +200,25 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
                 }));
                 setMessages((prev) => [...prev, ...botMessages]);
             }
+
+            // Check if the session is now paused with a delay (waiting)
+            if (res.data.success && res.data.data.session) {
+                const sessionData = res.data.data.session;
+                if (sessionData.status === 'PAUSED') {
+                    // Check if it's a delay pause by polling once to see if resumeAt is set
+                    try {
+                        const pollRes = await api.get('/simulator/poll', {
+                            params: { botId, since: new Date().toISOString() },
+                        });
+                        if (pollRes.data.success && pollRes.data.data.isWaiting) {
+                            setIsWaitingForDelay(true);
+                            setResumeAt(pollRes.data.data.resumeAt ? new Date(pollRes.data.data.resumeAt) : null);
+                        }
+                    } catch {
+                        // Polling check failed, not critical
+                    }
+                }
+            }
         } catch (err) {
             setMessages((prev) => [...prev, {
                 id: `err_${Date.now()}`,
@@ -80,6 +233,14 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
 
     const handleReset = async () => {
         try {
+            // Stop any active polling
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
+            setIsWaitingForDelay(false);
+            setResumeAt(null);
+
             await api.post('/simulator/reset', { botId });
             setMessages([{
                 id: `system_${Date.now()}`,
@@ -165,6 +326,19 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
                     </div>
                 )}
 
+                {isWaitingForDelay && (
+                    <div className="flex justify-start">
+                        <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-cyan-200 dark:border-cyan-800">
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-cyan-500 animate-pulse" />
+                                <span className="text-xs text-cyan-700 dark:text-cyan-400">
+                                    Waiting for delay{countdown ? ` (${countdown})` : '...'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div ref={messagesEndRef} />
             </div>
 
@@ -184,3 +358,4 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
         </div>
     );
 }
+
