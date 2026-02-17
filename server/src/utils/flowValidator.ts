@@ -85,9 +85,7 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
                 if (!config.url || config.url.trim() === '') {
                     errors.push({ nodeId: node.nodeId, field: 'url', message: 'API URL is required' });
                 }
-                if (!config.method) {
-                    errors.push({ nodeId: node.nodeId, field: 'method', message: 'HTTP method is required' });
-                }
+                // method defaults to GET if not set — no validation needed
                 break;
             }
             case 'AI': {

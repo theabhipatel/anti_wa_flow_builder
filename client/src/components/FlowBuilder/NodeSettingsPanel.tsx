@@ -307,6 +307,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                 {/* ======================== API ======================== */}
                 {nodeType === 'API' && (
                     <>
+                        {/* ─── Method ─── */}
                         <div>
                             <label className="input-label">Method</label>
                             <select
@@ -317,36 +318,520 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 <option>GET</option>
                                 <option>POST</option>
                                 <option>PUT</option>
+                                <option>PATCH</option>
                                 <option>DELETE</option>
                             </select>
                         </div>
+
+                        {/* ─── URL ─── */}
                         <div>
                             <label className="input-label">URL</label>
                             <input
                                 value={(config.url as string) || ''}
                                 onChange={(e) => updateConfig('url', e.target.value)}
-                                className="input-field"
-                                placeholder="https://api.example.com/data"
-                            />
-                        </div>
-                        <div>
-                            <label className="input-label">Request Body (JSON)</label>
-                            <textarea
-                                value={(config.body as string) || ''}
-                                onChange={(e) => updateConfig('body', e.target.value)}
                                 className="input-field font-mono text-xs"
-                                rows={4}
-                                placeholder='{"key": "value"}'
+                                placeholder="https://api.example.com/users/{{user_id}}"
                             />
+                            <p className="text-xs text-surface-500 mt-1">Supports {'{{variable}}'} interpolation</p>
                         </div>
-                        <div>
-                            <label className="input-label">Save Response to Variable</label>
-                            <input
-                                value={(config.responseVariable as string) || ''}
-                                onChange={(e) => updateConfig('responseVariable', e.target.value)}
-                                className="input-field"
-                                placeholder="api_result"
-                            />
+
+                        {/* ─── Authentication ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-auth-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>🔐 Authentication</span>
+                                <span className="text-[10px] text-surface-400">{(config.authType as string) || 'None'}</span>
+                            </button>
+                            <div id="api-auth-section" className="px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Auth Type</label>
+                                    <select
+                                        value={(config.authType as string) || 'NONE'}
+                                        onChange={(e) => updateConfig('authType', e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="NONE">None</option>
+                                        <option value="BEARER">Bearer Token</option>
+                                        <option value="API_KEY">API Key</option>
+                                        <option value="BASIC_AUTH">Basic Auth</option>
+                                        <option value="CUSTOM_HEADER">Custom Header</option>
+                                    </select>
+                                </div>
+
+                                {/* Bearer Token */}
+                                {(config.authType as string) === 'BEARER' && (
+                                    <div>
+                                        <label className="input-label">Token</label>
+                                        <input
+                                            value={((config.authConfig as Record<string, string>)?.bearerToken) || ''}
+                                            onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), bearerToken: e.target.value })}
+                                            className="input-field font-mono text-xs"
+                                            placeholder="{{auth_token}} or paste token"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* API Key */}
+                                {(config.authType as string) === 'API_KEY' && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Key Name</label>
+                                            <input
+                                                value={((config.authConfig as Record<string, string>)?.apiKeyName) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), apiKeyName: e.target.value })}
+                                                className="input-field text-xs"
+                                                placeholder="X-API-Key"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Key Value</label>
+                                            <input
+                                                value={((config.authConfig as Record<string, string>)?.apiKeyValue) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), apiKeyValue: e.target.value })}
+                                                className="input-field font-mono text-xs"
+                                                placeholder="{{api_key}} or paste key"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Send In</label>
+                                            <select
+                                                value={((config.authConfig as Record<string, string>)?.apiKeyLocation) || 'HEADER'}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), apiKeyLocation: e.target.value })}
+                                                className="input-field"
+                                            >
+                                                <option value="HEADER">Header</option>
+                                                <option value="QUERY">Query Parameter</option>
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Basic Auth */}
+                                {(config.authType as string) === 'BASIC_AUTH' && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Username</label>
+                                            <input
+                                                value={((config.authConfig as Record<string, string>)?.basicUsername) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), basicUsername: e.target.value })}
+                                                className="input-field text-xs"
+                                                placeholder="{{username}} or enter username"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Password</label>
+                                            <input
+                                                type="password"
+                                                value={((config.authConfig as Record<string, string>)?.basicPassword) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), basicPassword: e.target.value })}
+                                                className="input-field text-xs"
+                                                placeholder="{{password}} or enter password"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Custom Header */}
+                                {(config.authType as string) === 'CUSTOM_HEADER' && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Header Name</label>
+                                            <input
+                                                value={((config.authConfig as Record<string, string>)?.customAuthHeader) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), customAuthHeader: e.target.value })}
+                                                className="input-field text-xs"
+                                                placeholder="X-Custom-Auth"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Header Value</label>
+                                            <input
+                                                value={((config.authConfig as Record<string, string>)?.customAuthValue) || ''}
+                                                onChange={(e) => updateConfig('authConfig', { ...(config.authConfig as object || {}), customAuthValue: e.target.value })}
+                                                className="input-field font-mono text-xs"
+                                                placeholder="{{custom_token}}"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ─── Query Parameters ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-params-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>🔗 Query Parameters</span>
+                                <span className="text-[10px] text-surface-400">{((config.queryParams as Array<{key: string; value: string}>) || []).length} params</span>
+                            </button>
+                            <div id="api-params-section" className="px-3 pb-3 space-y-2">
+                                {((config.queryParams as Array<{key: string; value: string}>) || []).map((param: {key: string; value: string}, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1.5">
+                                        <input
+                                            value={param.key}
+                                            onChange={(e) => {
+                                                const params = [...((config.queryParams as Array<{key: string; value: string}>) || [])];
+                                                params[idx] = { ...params[idx], key: e.target.value };
+                                                updateConfig('queryParams', params);
+                                            }}
+                                            className="input-field flex-1 !py-1.5 text-xs"
+                                            placeholder="key"
+                                        />
+                                        <input
+                                            value={param.value}
+                                            onChange={(e) => {
+                                                const params = [...((config.queryParams as Array<{key: string; value: string}>) || [])];
+                                                params[idx] = { ...params[idx], value: e.target.value };
+                                                updateConfig('queryParams', params);
+                                            }}
+                                            className="input-field flex-1 !py-1.5 text-xs"
+                                            placeholder="value"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const params = ((config.queryParams as Array<{key: string; value: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                updateConfig('queryParams', params);
+                                            }}
+                                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => {
+                                        const params = [...((config.queryParams as Array<{key: string; value: string}>) || []), { key: '', value: '' }];
+                                        updateConfig('queryParams', params);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                                >
+                                    <Plus className="w-3 h-3" /> Add Parameter
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ─── Custom Headers ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-headers-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>📋 Headers</span>
+                                <span className="text-[10px] text-surface-400">{((config.headers as Array<{key: string; value: string}>) || []).length} headers</span>
+                            </button>
+                            <div id="api-headers-section" className="px-3 pb-3 space-y-2">
+                                {((config.headers as Array<{key: string; value: string}>) || []).map((header: {key: string; value: string}, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1.5">
+                                        <input
+                                            value={header.key}
+                                            onChange={(e) => {
+                                                const headers = [...((config.headers as Array<{key: string; value: string}>) || [])];
+                                                headers[idx] = { ...headers[idx], key: e.target.value };
+                                                updateConfig('headers', headers);
+                                            }}
+                                            className="input-field flex-1 !py-1.5 text-xs"
+                                            placeholder="Content-Type"
+                                        />
+                                        <input
+                                            value={header.value}
+                                            onChange={(e) => {
+                                                const headers = [...((config.headers as Array<{key: string; value: string}>) || [])];
+                                                headers[idx] = { ...headers[idx], value: e.target.value };
+                                                updateConfig('headers', headers);
+                                            }}
+                                            className="input-field flex-1 !py-1.5 text-xs"
+                                            placeholder="application/json"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const headers = ((config.headers as Array<{key: string; value: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                updateConfig('headers', headers);
+                                            }}
+                                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => {
+                                        const headers = [...((config.headers as Array<{key: string; value: string}>) || []), { key: '', value: '' }];
+                                        updateConfig('headers', headers);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                                >
+                                    <Plus className="w-3 h-3" /> Add Header
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ─── Request Body (hidden for GET & DELETE) ─── */}
+                        {!['GET', 'DELETE'].includes(((config.method as string) || 'GET').toUpperCase()) && (
+                            <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                                <div className="px-3 py-2">
+                                    <label className="input-label !mb-2">📦 Request Body</label>
+                                    <div className="mb-2">
+                                        <label className="input-label">Content Type</label>
+                                        <select
+                                            value={(config.contentType as string) || 'JSON'}
+                                            onChange={(e) => updateConfig('contentType', e.target.value)}
+                                            className="input-field"
+                                        >
+                                            <option value="JSON">JSON</option>
+                                            <option value="FORM_URLENCODED">Form URL-Encoded</option>
+                                            <option value="RAW">Raw Text</option>
+                                        </select>
+                                    </div>
+                                    <textarea
+                                        value={(config.body as string) || ''}
+                                        onChange={(e) => updateConfig('body', e.target.value)}
+                                        className="input-field font-mono text-xs"
+                                        rows={5}
+                                        placeholder={
+                                            (config.contentType as string) === 'FORM_URLENCODED'
+                                                ? '{"username": "{{user}}", "action": "login"}'
+                                                : (config.contentType as string) === 'RAW'
+                                                ? 'Raw text body...'
+                                                : '{\n  "key": "value",\n  "name": "{{user_name}}"\n}'
+                                        }
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Supports {'{{variable}}'} interpolation</p>
+                                    {/* JSON validation indicator */}
+                                    {((config.contentType as string) || 'JSON') === 'JSON' && (config.body as string) && (() => {
+                                        try {
+                                            JSON.parse((config.body as string).replace(/\{\{.+?\}\}/g, '"__var__"'));
+                                            return <p className="text-xs text-green-500 mt-0.5">✓ Valid JSON</p>;
+                                        } catch {
+                                            return <p className="text-xs text-red-500 mt-0.5">✗ Invalid JSON syntax</p>;
+                                        }
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── Timeout & Retry ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-timeout-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>⏱️ Timeout & Retry</span>
+                                <span className="text-[10px] text-surface-400">{(config.timeout as number) || 10}s / Retry: {config.retryEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                            <div id="api-timeout-section" className="px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Timeout (seconds)</label>
+                                    <input
+                                        type="number"
+                                        value={(config.timeout as number) ?? 10}
+                                        onChange={(e) => updateConfig('timeout', Math.max(1, Math.min(120, parseInt(e.target.value) || 10)))}
+                                        className="input-field"
+                                        min={1}
+                                        max={120}
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Min: 1s, Max: 120s, Default: 10s</p>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="api-retry-toggle"
+                                        checked={!!config.retryEnabled}
+                                        onChange={(e) => updateConfig('retryEnabled', e.target.checked)}
+                                        className="w-4 h-4 rounded border-surface-300 text-violet-600 focus:ring-violet-500"
+                                    />
+                                    <label htmlFor="api-retry-toggle" className="text-xs font-medium text-surface-700 dark:text-surface-300">Enable Retry on Failure</label>
+                                </div>
+
+                                {!!config.retryEnabled && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Max Retries</label>
+                                            <input
+                                                type="number"
+                                                value={((config.retry as {max?: number; delay?: number})?.max) ?? 3}
+                                                onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), max: Math.max(1, Math.min(10, parseInt(e.target.value) || 3)) })}
+                                                className="input-field"
+                                                min={1}
+                                                max={10}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Retry Delay (seconds)</label>
+                                            <input
+                                                type="number"
+                                                value={((config.retry as {max?: number; delay?: number})?.delay) ?? 2}
+                                                onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), delay: Math.max(1, Math.min(30, parseInt(e.target.value) || 2)) })}
+                                                className="input-field"
+                                                min={1}
+                                                max={30}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ─── Response Handling ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-response-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>📥 Response Handling</span>
+                                <span className="text-[10px] text-surface-400">{((config.responseMapping as Array<unknown>) || []).length} mappings</span>
+                            </button>
+                            <div id="api-response-section" className="px-3 pb-3 space-y-3">
+                                {/* Status Code Variable */}
+                                <div>
+                                    <label className="input-label">Status Code Variable</label>
+                                    <input
+                                        value={(config.statusCodeVariable as string) || ''}
+                                        onChange={(e) => updateConfig('statusCodeVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="api_status_code"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores HTTP status (200, 404, etc.)</p>
+                                </div>
+
+                                {/* Store Entire Response */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <input
+                                            type="checkbox"
+                                            id="api-store-entire"
+                                            checked={!!config.storeEntireResponse}
+                                            onChange={(e) => updateConfig('storeEntireResponse', e.target.checked)}
+                                            className="w-4 h-4 rounded border-surface-300 text-violet-600 focus:ring-violet-500"
+                                        />
+                                        <label htmlFor="api-store-entire" className="text-xs font-medium text-surface-700 dark:text-surface-300">Store Entire Response Body</label>
+                                    </div>
+                                    {!!config.storeEntireResponse && (
+                                        <input
+                                            value={(config.storeResponseIn as string) || ''}
+                                            onChange={(e) => updateConfig('storeResponseIn', e.target.value)}
+                                            className="input-field text-xs"
+                                            placeholder="api_response"
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Response Mapping */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="input-label !mb-0">Response Mapping</label>
+                                        <span className="text-[10px] text-surface-400">{((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).length} mappings</span>
+                                    </div>
+                                    <p className="text-xs text-surface-500 mb-2">Extract specific fields from the response using dot notation (e.g. <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">data.user.name</code>)</p>
+                                    <div className="space-y-2">
+                                        {((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).map((mapping: {jsonPath: string; variableName: string}, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-1.5">
+                                                <input
+                                                    value={mapping.jsonPath}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], jsonPath: e.target.value };
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 font-mono text-xs"
+                                                    placeholder="data.user.name"
+                                                />
+                                                <span className="text-xs text-surface-400">→</span>
+                                                <input
+                                                    value={mapping.variableName}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], variableName: e.target.value };
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 text-xs"
+                                                    placeholder="user_name"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const mappings = ((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []), { jsonPath: '', variableName: '' }];
+                                            updateConfig('responseMapping', mappings);
+                                        }}
+                                        className="mt-2 w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Mapping
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Error Handling ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('api-error-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>⚠️ Error Handling</span>
+                                <span className="text-[10px] text-surface-400">{(config.errorVariable as string) ? 'Configured' : 'Optional'}</span>
+                            </button>
+                            <div id="api-error-section" className="px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Error Variable</label>
+                                    <input
+                                        value={(config.errorVariable as string) || ''}
+                                        onChange={(e) => updateConfig('errorVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="api_error"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores error message on failure. Use in Condition node to branch on errors.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Usage Tips ─── */}
+                        <div className="bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-1">💡 Tips</p>
+                            <ul className="text-xs text-violet-600 dark:text-violet-400 space-y-1 list-disc list-inside">
+                                <li>Use <code className="bg-violet-100 dark:bg-violet-900/30 px-1 rounded">{'{{variable}}'}</code> in URL, headers, body, and auth fields</li>
+                                <li>For arrays, use <strong>Response Mapping</strong> with <code className="bg-violet-100 dark:bg-violet-900/30 px-1 rounded">data.0.name</code> for first item</li>
+                                <li>Feed array responses into a <strong>Loop</strong> node for iteration</li>
+                                <li>Use <strong>Status Code Variable</strong> with a <strong>Condition</strong> node for error branching</li>
+                            </ul>
                         </div>
                     </>
                 )}

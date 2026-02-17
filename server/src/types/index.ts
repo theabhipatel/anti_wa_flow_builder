@@ -12,6 +12,8 @@ export type TMessageSender = 'USER' | 'BOT';
 export type TMessageType = 'TEXT' | 'BUTTON' | 'IMAGE' | 'DOCUMENT';
 export type TInputType = 'TEXT' | 'NUMBER' | 'EMAIL' | 'PHONE' | 'CUSTOM_REGEX';
 export type THttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+export type TAuthType = 'NONE' | 'BEARER' | 'API_KEY' | 'BASIC_AUTH' | 'CUSTOM_HEADER';
+export type TContentType = 'JSON' | 'FORM_URLENCODED' | 'RAW';
 export type TLoopType = 'COUNT_BASED' | 'CONDITION_BASED';
 export type TEndType = 'NORMAL' | 'ERROR';
 export type TSessionAction = 'KEEP_ACTIVE' | 'CLOSE_SESSION';
@@ -271,20 +273,63 @@ export interface IApiResponseMapping {
     variableName: string;
 }
 
+export interface IApiAuthConfig {
+    // Bearer Token
+    bearerToken?: string;
+    // API Key
+    apiKeyName?: string;
+    apiKeyValue?: string;
+    apiKeyLocation?: 'HEADER' | 'QUERY';
+    // Basic Auth
+    basicUsername?: string;
+    basicPassword?: string;
+    // Custom Header
+    customAuthHeader?: string;
+    customAuthValue?: string;
+}
+
 export interface IApiNodeConfig {
     method: THttpMethod;
     url: string;
+
+    // Authentication
+    authType?: TAuthType;
+    authConfig?: IApiAuthConfig;
+
+    // Headers
     headers?: IApiHeaderParam[];
+
+    // Query Parameters
     queryParams?: IApiHeaderParam[];
+
+    // Request Body (only for POST, PUT, PATCH)
+    contentType?: TContentType;
     body?: string;
-    responseMapping?: IApiResponseMapping[];
-    storeEntireResponse?: boolean;
-    storeResponseIn?: string;
+
+    // Timeout in seconds (default: 10)
+    timeout?: number;
+
+    // Retry configuration
+    retryEnabled?: boolean;
     retry?: {
         max: number;
         delay: number;
-        timeout: number;
+        timeout?: number; // legacy — now using top-level timeout
     };
+
+    // Response handling
+    statusCodeVariable?: string;
+    storeEntireResponse?: boolean;
+    storeResponseIn?: string;
+    responseMapping?: IApiResponseMapping[];
+
+    // Error handling
+    errorVariable?: string;
+
+    // Legacy: single response variable (backwards compat with old frontend)
+    responseVariable?: string;
+
+    // Navigation
     successNextNodeId?: string;
     failureNextNodeId?: string;
 }

@@ -816,84 +816,266 @@ const executeApiNode = async (context: IExecutionContext, node: IFlowNode): Prom
     const config = node.config as IApiNodeConfig;
 
     try {
-        // Resolve variables in URL, headers, body
-        const resolvedUrl = await resolveVariables(config.url, context.session._id, context.session.botId);
+        // Resolve variables in URL
+        const resolvedUrl = await resolveVariables(config.url || '', context.session._id, context.session.botId);
 
+        // ── Build Headers ──
         const headers: Record<string, string> = {};
+
+        // Custom headers from config
         if (config.headers) {
             for (const h of config.headers) {
-                const resolvedValue = await resolveVariables(h.value, context.session._id, context.session.botId);
-                headers[h.key] = resolvedValue;
+                if (h.key && h.key.trim()) {
+                    const resolvedValue = await resolveVariables(h.value, context.session._id, context.session.botId);
+                    headers[h.key.trim()] = resolvedValue;
+                }
             }
         }
 
+        // ── Authentication ──
+        const authType = config.authType || 'NONE';
+        const authConfig = config.authConfig || {};
+
+        switch (authType) {
+            case 'BEARER': {
+                if (authConfig.bearerToken) {
+                    const resolvedToken = await resolveVariables(authConfig.bearerToken, context.session._id, context.session.botId);
+                    headers['Authorization'] = `Bearer ${resolvedToken}`;
+                }
+                break;
+            }
+            case 'API_KEY': {
+                if (authConfig.apiKeyName && authConfig.apiKeyValue) {
+                    const resolvedKeyValue = await resolveVariables(authConfig.apiKeyValue, context.session._id, context.session.botId);
+                    if (authConfig.apiKeyLocation === 'QUERY') {
+                        // Will be added to query params below
+                    } else {
+                        // Default: add to headers
+                        headers[authConfig.apiKeyName] = resolvedKeyValue;
+                    }
+                }
+                break;
+            }
+            case 'BASIC_AUTH': {
+                if (authConfig.basicUsername) {
+                    const resolvedUser = await resolveVariables(authConfig.basicUsername, context.session._id, context.session.botId);
+                    const resolvedPass = authConfig.basicPassword
+                        ? await resolveVariables(authConfig.basicPassword, context.session._id, context.session.botId)
+                        : '';
+                    const encoded = Buffer.from(`${resolvedUser}:${resolvedPass}`).toString('base64');
+                    headers['Authorization'] = `Basic ${encoded}`;
+                }
+                break;
+            }
+            case 'CUSTOM_HEADER': {
+                if (authConfig.customAuthHeader && authConfig.customAuthValue) {
+                    const resolvedValue = await resolveVariables(authConfig.customAuthValue, context.session._id, context.session.botId);
+                    headers[authConfig.customAuthHeader] = resolvedValue;
+                }
+                break;
+            }
+        }
+
+        // ── Query Parameters ──
         const params: Record<string, string> = {};
         if (config.queryParams) {
             for (const p of config.queryParams) {
-                const resolvedValue = await resolveVariables(p.value, context.session._id, context.session.botId);
-                params[p.key] = resolvedValue;
+                if (p.key && p.key.trim()) {
+                    const resolvedValue = await resolveVariables(p.value, context.session._id, context.session.botId);
+                    params[p.key.trim()] = resolvedValue;
+                }
             }
         }
 
-        let body: unknown;
-        if (config.body) {
+        // Add API Key to query params if configured that way
+        if (authType === 'API_KEY' && authConfig.apiKeyLocation === 'QUERY' && authConfig.apiKeyName && authConfig.apiKeyValue) {
+            const resolvedKeyValue = await resolveVariables(authConfig.apiKeyValue, context.session._id, context.session.botId);
+            params[authConfig.apiKeyName] = resolvedKeyValue;
+        }
+
+        // ── Request Body (only for POST, PUT, PATCH) ──
+        let data: unknown;
+        const method = (config.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'DELETE' && config.body) {
             const resolvedBody = await resolveVariables(config.body, context.session._id, context.session.botId);
-            try {
-                body = JSON.parse(resolvedBody);
-            } catch {
-                body = resolvedBody;
+            const contentType = config.contentType || 'JSON';
+
+            switch (contentType) {
+                case 'JSON': {
+                    try {
+                        data = JSON.parse(resolvedBody);
+                    } catch {
+                        data = resolvedBody; // Send raw if JSON parse fails
+                    }
+                    if (!headers['Content-Type']) {
+                        headers['Content-Type'] = 'application/json';
+                    }
+                    break;
+                }
+                case 'FORM_URLENCODED': {
+                    // Convert JSON-like body to URL-encoded string
+                    try {
+                        const parsed = JSON.parse(resolvedBody);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            data = new URLSearchParams(parsed as Record<string, string>).toString();
+                        } else {
+                            data = resolvedBody;
+                        }
+                    } catch {
+                        data = resolvedBody;
+                    }
+                    if (!headers['Content-Type']) {
+                        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                    }
+                    break;
+                }
+                case 'RAW':
+                default: {
+                    data = resolvedBody;
+                    if (!headers['Content-Type']) {
+                        headers['Content-Type'] = 'text/plain';
+                    }
+                    break;
+                }
             }
         }
 
-        const timeout = config.retry?.timeout ? config.retry.timeout * 1000 : 30000;
-        const maxRetries = config.retry?.max || 3;
+        // ── Timeout (default: 10 seconds) ──
+        const timeoutSeconds = config.timeout ?? config.retry?.timeout ?? 10;
+        const timeoutMs = timeoutSeconds * 1000;
 
+        // ── Retry Configuration ──
+        const retryEnabled = config.retryEnabled ?? (config.retry ? true : false);
+        const maxRetries = retryEnabled ? (config.retry?.max || 3) : 1;
+        const retryDelay = config.retry?.delay || 2;
+
+        // ── Execute Request with Retry ──
         let response;
-        let retries = 0;
-        while (retries < maxRetries) {
+        let lastError: unknown;
+        let attempt = 0;
+
+        while (attempt < maxRetries) {
             try {
                 response = await axios({
-                    method: config.method.toLowerCase(),
+                    method: (config.method || 'GET').toLowerCase(),
                     url: resolvedUrl,
                     headers,
                     params,
-                    data: body,
-                    timeout,
+                    data,
+                    timeout: timeoutMs,
+                    validateStatus: () => true, // Don't throw on non-2xx so we can capture status
                 });
-                break;
+                // If status is 2xx, break. Otherwise treat as error for retry.
+                if (response.status >= 200 && response.status < 400) {
+                    break;
+                }
+                // Non-success status — retry if retries remain
+                lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+                attempt++;
+                if (attempt < maxRetries) {
+                    await new Promise((r) => setTimeout(r, retryDelay * 1000));
+                }
             } catch (err) {
-                retries++;
-                if (retries >= maxRetries) throw err;
-                await new Promise((r) => setTimeout(r, (config.retry?.delay || 2) * 1000));
+                lastError = err;
+                attempt++;
+                if (attempt < maxRetries) {
+                    await new Promise((r) => setTimeout(r, retryDelay * 1000));
+                }
             }
         }
 
-        // Store response in variables
-        if (response) {
-            if (config.storeEntireResponse && config.storeResponseIn) {
-                await setSessionVariable(context.session._id, config.storeResponseIn, response.data, 'OBJECT');
+        // ── Store Status Code ──
+        if (response && config.statusCodeVariable) {
+            await setSessionVariable(context.session._id, config.statusCodeVariable, response.status, 'NUMBER');
+        }
+
+        // ── Check for final failure after all retries ──
+        if (!response || response.status >= 400) {
+            const errorMsg = lastError instanceof Error ? lastError.message : String(lastError || 'Request failed');
+            console.error(`[API Node] Request failed after ${attempt} attempt(s):`, errorMsg);
+
+            // Store error in variable
+            if (config.errorVariable) {
+                await setSessionVariable(context.session._id, config.errorVariable, errorMsg, 'STRING');
             }
 
-            if (config.responseMapping) {
-                for (const mapping of config.responseMapping) {
-                    const value = getJsonPathValue(response.data, mapping.jsonPath);
+            // Use edge-based routing: look for an edge from the 'error' handle
+            const errorEdge = context.flowData.edges.find(
+                (e) => e.sourceNodeId === node.nodeId && e.sourceHandle === 'error'
+            );
+            const fallbackEdge = context.flowData.edges.find(
+                (e) => e.sourceNodeId === node.nodeId && !e.sourceHandle
+            );
+            return config.failureNextNodeId || errorEdge?.targetNodeId || fallbackEdge?.targetNodeId;
+        }
+
+        // ── Store Response Data ──
+        const responseData = response.data;
+
+        // Legacy: single responseVariable support (old frontend)
+        if (config.responseVariable) {
+            const varType = typeof responseData === 'number' ? 'NUMBER'
+                : typeof responseData === 'boolean' ? 'BOOLEAN'
+                : Array.isArray(responseData) ? 'ARRAY'
+                : typeof responseData === 'object' ? 'OBJECT'
+                : 'STRING';
+            await setSessionVariable(context.session._id, config.responseVariable, responseData, varType);
+        }
+
+        // Store entire response
+        if (config.storeEntireResponse && config.storeResponseIn) {
+            const varType = Array.isArray(responseData) ? 'ARRAY' : typeof responseData === 'object' ? 'OBJECT' : 'STRING';
+            await setSessionVariable(context.session._id, config.storeResponseIn, responseData, varType);
+        }
+
+        // Response mapping (JSONPath → variable)
+        if (config.responseMapping) {
+            console.log(`[API Node] Response mapping: ${config.responseMapping.length} mappings defined`);
+            console.log(`[API Node] responseData type: ${typeof responseData}, isArray: ${Array.isArray(responseData)}`);
+            console.log(`[API Node] responseData keys:`, typeof responseData === 'object' && responseData ? Object.keys(responseData as object) : 'N/A');
+            for (const mapping of config.responseMapping) {
+                if (mapping.jsonPath && mapping.variableName) {
+                    const value = getJsonPathValue(responseData, mapping.jsonPath);
+                    console.log(`[API Node] Mapping: "${mapping.jsonPath}" → "${mapping.variableName}" = `, value, `(type: ${typeof value})`);
                     if (value !== undefined) {
-                        const varType = typeof value === 'number' ? 'NUMBER' : typeof value === 'boolean' ? 'BOOLEAN' : typeof value === 'object' ? 'OBJECT' : 'STRING';
+                        const varType = typeof value === 'number' ? 'NUMBER'
+                            : typeof value === 'boolean' ? 'BOOLEAN'
+                            : Array.isArray(value) ? 'ARRAY'
+                            : typeof value === 'object' ? 'OBJECT'
+                            : 'STRING';
                         await setSessionVariable(context.session._id, mapping.variableName, value, varType);
                     }
                 }
             }
         }
 
-        return config.successNextNodeId;
+        // Use edge-based routing: look for success edge
+        const successEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && (e.sourceHandle === 'success' || !e.sourceHandle)
+        );
+        return config.successNextNodeId || successEdge?.targetNodeId;
     } catch (error) {
-        console.error(`[API Node] Error:`, error);
-        return config.failureNextNodeId;
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[API Node] Unexpected error:`, errorMsg);
+
+        // Store error in variable
+        if (config.errorVariable) {
+            await setSessionVariable(context.session._id, config.errorVariable, errorMsg, 'STRING');
+        }
+
+        // Use edge-based routing for error — fall back to generic edge
+        const errorEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && e.sourceHandle === 'error'
+        );
+        const fallbackEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && !e.sourceHandle
+        );
+        return config.failureNextNodeId || errorEdge?.targetNodeId || fallbackEdge?.targetNodeId;
     }
 };
 
 const getJsonPathValue = (obj: unknown, path: string): unknown => {
-    const parts = path.split('.');
+    const parts = path.split('.').map(p => p.trim()).filter(p => p.length > 0);
     let current = obj;
     for (const part of parts) {
         if (current === null || current === undefined) return undefined;

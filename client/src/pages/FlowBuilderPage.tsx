@@ -360,12 +360,29 @@ function FlowBuilderInner() {
                     if (res.data.success) {
                         setValidation({ isValid: true, errors: [], warnings: [] });
                     } else {
-                        setValidation(res.data.data);
+                        // Deploy returns data as array of {flowName, errors} — flatten into IValidationResult
+                        const deployErrors = res.data.data;
+                        if (Array.isArray(deployErrors)) {
+                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string }> }) =>
+                                (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
+                            );
+                            setValidation({ isValid: false, errors: allErrors, warnings: [] });
+                        } else {
+                            setValidation(deployErrors);
+                        }
                     }
                 } catch (err: unknown) {
-                    const axiosErr = err as { response?: { data?: { data?: IValidationResult; error?: string } } };
+                    const axiosErr = err as { response?: { data?: { data?: unknown; error?: string } } };
                     if (axiosErr.response?.data?.data) {
-                        setValidation(axiosErr.response.data.data);
+                        const deployErrors = axiosErr.response.data.data;
+                        if (Array.isArray(deployErrors)) {
+                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string }> }) =>
+                                (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
+                            );
+                            setValidation({ isValid: false, errors: allErrors, warnings: [] });
+                        } else {
+                            setValidation(deployErrors as IValidationResult);
+                        }
                     }
                 } finally {
                     setDeploying(false);
@@ -448,7 +465,7 @@ function FlowBuilderInner() {
                 <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-red-500" />
                     <span className="text-sm text-red-600 dark:text-red-400">
-                        {validation.errors.length} error{validation.errors.length !== 1 ? 's' : ''}: {validation.errors[0]?.message}
+                        {(validation.errors?.length || 0)} error{(validation.errors?.length || 0) !== 1 ? 's' : ''}: {validation.errors?.[0]?.message || 'Validation failed'}
                     </span>
                     <button onClick={() => setValidation(null)} className="ml-auto text-xs text-red-500 hover:text-red-700">Dismiss</button>
                 </div>
