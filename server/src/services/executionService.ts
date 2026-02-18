@@ -1298,39 +1298,314 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
 
 const executeLoopNode = async (context: IExecutionContext, node: IFlowNode): Promise<string | undefined> => {
     const config = node.config as ILoopNodeConfig;
+    const sessionId = context.session._id;
+    const botId = context.session.botId;
 
+    console.log(`[Loop] ▶ Executing LOOP node "${node.nodeId}" — mode: ${config.loopType || '(not set, defaulting)'}`);
+    console.log(`[Loop]   Config:`, JSON.stringify({
+        loopType: config.loopType,
+        arrayVariable: config.arrayVariable,
+        itemVariable: config.itemVariable,
+        maxIterations: config.maxIterations,
+        iterationCount: config.iterationCount,
+        loopBodyNextNodeId: config.loopBodyNextNodeId,
+        exitNextNodeId: config.exitNextNodeId,
+    }));
+
+    // Default loopType for backward compatibility — old nodes used COUNT_BASED behavior
+    const loopType = config.loopType || 'COUNT_BASED';
+
+    // ── Internal iteration variable ──
     const iterationVar = config.currentIterationVariable || `__loop_${node.nodeId}_iter`;
-    const vars = await getVariableMap(context.session._id, context.session.botId);
+    const vars = await getVariableMap(sessionId, botId);
     const currentIteration = (vars[iterationVar] as number) || 0;
+    console.log(`[Loop]   Current iteration: ${currentIteration}`);
 
-    if (config.loopType === 'COUNT_BASED') {
-        const maxCount = config.iterationCount || config.maxIterations;
-        if (currentIteration >= maxCount) {
-            // Reset counter and exit
-            await setSessionVariable(context.session._id, iterationVar, 0, 'NUMBER');
-            return config.exitNextNodeId;
-        }
+    // ── Helper: find next node from edge handles ──
+    const findEdgeTarget = (handleId: string): string | undefined => {
+        const edge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && e.sourceHandle === handleId
+        );
+        return edge?.targetNodeId;
+    };
 
-        // Increment and go to loop body
-        await setSessionVariable(context.session._id, iterationVar, currentIteration + 1, 'NUMBER');
-        return config.loopBodyNextNodeId;
-    } else {
-        // CONDITION_BASED
-        if (currentIteration >= config.maxIterations) {
-            await setSessionVariable(context.session._id, iterationVar, 0, 'NUMBER');
-            return config.exitNextNodeId;
-        }
+    // ── Helper: find generic edge (no sourceHandle) as fallback ──
+    const findGenericEdge = (): string | undefined => {
+        const edge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && !e.sourceHandle
+        );
+        return edge?.targetNodeId;
+    };
 
-        // Evaluate exit condition
-        if (config.exitCondition && evaluateExpression(config.exitCondition, vars)) {
-            await setSessionVariable(context.session._id, iterationVar, 0, 'NUMBER');
-            return config.exitNextNodeId;
-        }
+    // ── Edge targets (with fallback for old edges without sourceHandle) ──
+    const loopBodyTarget = config.loopBodyNextNodeId || findEdgeTarget('loop-body') || findGenericEdge();
+    const doneTarget = config.exitNextNodeId || findEdgeTarget('done');
+    const errorTarget = config.errorNextNodeId || findEdgeTarget('error');
 
-        // Continue loop
-        await setSessionVariable(context.session._id, iterationVar, currentIteration + 1, 'NUMBER');
-        return config.loopBodyNextNodeId;
+    console.log(`[Loop]   Edge targets — body: ${loopBodyTarget || '(none)'}, done: ${doneTarget || '(none)'}, error: ${errorTarget || '(none)'}`);
+
+    if (!loopBodyTarget) {
+        console.warn(`[Loop] ⚠️ No loop-body target found — make sure an edge is connected from the Loop Body handle`);
     }
+
+    // ── Helper: check if loop body has a path back to this node ──
+    const hasLoopBack = (): boolean => {
+        return context.flowData.edges.some((e) => e.targetNodeId === node.nodeId && e.sourceNodeId !== node.nodeId);
+    };
+
+    // ── Helper: set control variables ──
+    const setControlVars = async (index: number, totalCount: number) => {
+        const indexVarName = config.indexVariable || `__loop_${node.nodeId}_index`;
+        const countVarName = config.countVariable || `__loop_${node.nodeId}_count`;
+
+        await setSessionVariable(sessionId, indexVarName, index, 'NUMBER');
+        await setSessionVariable(sessionId, countVarName, totalCount, 'NUMBER');
+        await setSessionVariable(sessionId, `__loop_${node.nodeId}_is_first`, index === 0, 'BOOLEAN');
+        await setSessionVariable(sessionId, `__loop_${node.nodeId}_is_last`, index === totalCount - 1, 'BOOLEAN');
+    };
+
+    // ── Helper: handle loop exit (reset + go to done) ──
+    const exitLoop = async (): Promise<string | undefined> => {
+        await setSessionVariable(sessionId, iterationVar, 0, 'NUMBER');
+        console.log(`[Loop] ✅ Loop complete — exiting to done target`);
+        return doneTarget;
+    };
+
+    // ── Helper: handle error (set error var + go to error target) ──
+    const handleError = async (errorMessage: string): Promise<string | undefined> => {
+        console.error(`[Loop] ❌ Error: ${errorMessage}`);
+        if (config.errorVariable) {
+            await setSessionVariable(sessionId, config.errorVariable, errorMessage, 'STRING');
+        }
+        await setSessionVariable(sessionId, iterationVar, 0, 'NUMBER');
+        return errorTarget || doneTarget;
+    };
+
+    // ── Helper: apply item mapping (extract fields from item into variables) ──
+    const applyItemMapping = async (item: unknown) => {
+        if (config.itemMapping && config.itemMapping.length > 0) {
+            for (const mapping of config.itemMapping) {
+                const value = getJsonPathValue(item, mapping.jsonPath);
+                const varType = typeof value === 'number' ? 'NUMBER'
+                    : typeof value === 'boolean' ? 'BOOLEAN'
+                    : typeof value === 'object' ? 'OBJECT'
+                    : 'STRING';
+                await setSessionVariable(sessionId, mapping.variableName, value, varType);
+            }
+        }
+    };
+
+    // ── Helper: collect result for accumulator ──
+    const collectResult = async (item: unknown) => {
+        if (config.collectResults && config.resultVariable) {
+            const accumulatorVar = `__loop_${node.nodeId}_accumulator`;
+            const existingResults = (vars[accumulatorVar] as unknown[]) || [];
+            let valueToCollect: unknown;
+            if (config.resultJsonPath) {
+                valueToCollect = getJsonPathValue(item, config.resultJsonPath);
+            } else {
+                valueToCollect = item;
+            }
+            existingResults.push(valueToCollect);
+            await setSessionVariable(sessionId, accumulatorVar, existingResults, 'ARRAY');
+        }
+    };
+
+    // ── Helper: finalize accumulator (move to result variable and clean up) ──
+    const finalizeAccumulator = async () => {
+        if (config.collectResults && config.resultVariable) {
+            const accumulatorVar = `__loop_${node.nodeId}_accumulator`;
+            const freshVars = await getVariableMap(sessionId, botId);
+            const results = (freshVars[accumulatorVar] as unknown[]) || [];
+            await setSessionVariable(sessionId, config.resultVariable, results, 'ARRAY');
+            await setSessionVariable(sessionId, accumulatorVar, [], 'ARRAY'); // Clean up
+        }
+    };
+
+    // ════════════════════════════════════════════════
+    // FOR_EACH MODE — Array iteration
+    // ════════════════════════════════════════════════
+    if (loopType === 'FOR_EACH') {
+        // Resolve the array variable
+        let arraySource: string = config.arrayVariable || '';
+        // Strip {{ and }} if present
+        const varMatch = arraySource.match(/^\{\{(.+?)\}\}$/);
+        if (varMatch) {
+            arraySource = varMatch[1].trim();
+        }
+
+        // Get the array from variables
+        let arrayData: unknown = vars[arraySource];
+
+        // Try nested path: e.g. "api_response.users" → vars.api_response.users
+        if (arrayData === undefined && arraySource.includes('.')) {
+            const topLevel = arraySource.split('.')[0];
+            const remainingPath = arraySource.substring(topLevel.length + 1);
+            const topValue = vars[topLevel];
+            if (topValue !== undefined) {
+                arrayData = getJsonPathValue(topValue, remainingPath);
+            }
+        }
+
+        // Parse if string (in case it was stored as JSON string)
+        if (typeof arrayData === 'string') {
+            try {
+                arrayData = JSON.parse(arrayData);
+            } catch {
+                // Not JSON, keep as string
+            }
+        }
+
+        // Validate it's an array
+        if (!Array.isArray(arrayData)) {
+            if (config.onEmptyArray === 'ERROR') {
+                return handleError(`Array variable "${config.arrayVariable}" is not a valid array`);
+            }
+            console.log(`[Loop] Array variable "${config.arrayVariable}" is not an array — skipping to done`);
+            await setSessionVariable(sessionId, iterationVar, 0, 'NUMBER');
+            return doneTarget;
+        }
+
+        // Handle empty array
+        if (arrayData.length === 0) {
+            if (config.onEmptyArray === 'ERROR') {
+                return handleError(`Array "${config.arrayVariable}" is empty`);
+            }
+            console.log(`[Loop] Array is empty — skipping to done`);
+            await setSessionVariable(sessionId, iterationVar, 0, 'NUMBER');
+            return doneTarget;
+        }
+
+        const totalItems = Math.min(arrayData.length, config.maxIterations || 100);
+
+        // Check if we've finished all items
+        if (currentIteration >= totalItems) {
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Check if loop body has a return path (except on first iteration)
+        if (currentIteration > 0 && !hasLoopBack()) {
+            console.log(`[Loop] ⚠️ No loop-back edge detected — stopping iterations`);
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Get current item
+        const currentItem = arrayData[currentIteration];
+        console.log(`[Loop] FOR_EACH iteration ${currentIteration + 1}/${totalItems}`);
+
+        // Set item variable
+        const itemVarName = config.itemVariable || `__loop_${node.nodeId}_item`;
+        const itemType = typeof currentItem === 'object' ? 'OBJECT'
+            : typeof currentItem === 'number' ? 'NUMBER'
+            : typeof currentItem === 'boolean' ? 'BOOLEAN'
+            : 'STRING';
+        await setSessionVariable(sessionId, itemVarName, currentItem, itemType);
+
+        // Set control variables
+        await setControlVars(currentIteration, totalItems);
+
+        // Apply item mapping
+        await applyItemMapping(currentItem);
+
+        // Collect result for accumulator
+        await collectResult(currentItem);
+
+        // Increment iteration counter
+        await setSessionVariable(sessionId, iterationVar, currentIteration + 1, 'NUMBER');
+
+        // Go to loop body
+        return loopBodyTarget;
+    }
+
+    // ════════════════════════════════════════════════
+    // COUNT_BASED MODE — Fixed number of iterations
+    // ════════════════════════════════════════════════
+    if (loopType === 'COUNT_BASED') {
+        const maxCount = config.iterationCount || config.maxIterations || 10;
+        const startVal = config.startValue ?? 0;
+        const stepVal = config.step ?? 1;
+        const totalIterations = Math.min(maxCount, config.maxIterations || 100);
+
+        // Check if done
+        if (currentIteration >= totalIterations) {
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Check loop-back (except first iteration)
+        if (currentIteration > 0 && !hasLoopBack()) {
+            console.log(`[Loop] ⚠️ No loop-back edge detected — stopping iterations`);
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Calculate counter value
+        const counterValue = startVal + (currentIteration * stepVal);
+        const counterVarName = config.counterVariable || `__loop_${node.nodeId}_counter`;
+        console.log(`[Loop] COUNT_BASED iteration ${currentIteration + 1}/${totalIterations} (counter: ${counterValue})`);
+
+        await setSessionVariable(sessionId, counterVarName, counterValue, 'NUMBER');
+
+        // Set control variables
+        await setControlVars(currentIteration, totalIterations);
+
+        // Increment iteration counter
+        await setSessionVariable(sessionId, iterationVar, currentIteration + 1, 'NUMBER');
+
+        return loopBodyTarget;
+    }
+
+    // ════════════════════════════════════════════════
+    // CONDITION_BASED MODE — While condition is true
+    // ════════════════════════════════════════════════
+    if (loopType === 'CONDITION_BASED') {
+        const maxIter = config.maxIterations || 100;
+
+        // Safety: max iterations exceeded
+        if (currentIteration >= maxIter) {
+            console.log(`[Loop] CONDITION_BASED — max iterations reached (${maxIter})`);
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Check loop-back (except first iteration)
+        if (currentIteration > 0 && !hasLoopBack()) {
+            console.log(`[Loop] ⚠️ No loop-back edge detected — stopping iterations`);
+            await finalizeAccumulator();
+            return exitLoop();
+        }
+
+        // Evaluate continue condition — re-read vars for fresh values
+        const freshVars = currentIteration > 0 ? await getVariableMap(sessionId, botId) : vars;
+
+        if (config.continueCondition) {
+            const conditionResult = evaluateExpression(config.continueCondition, freshVars);
+            if (!conditionResult) {
+                console.log(`[Loop] CONDITION_BASED — condition false, exiting`);
+                await finalizeAccumulator();
+                return exitLoop();
+            }
+        }
+
+        console.log(`[Loop] CONDITION_BASED iteration ${currentIteration + 1} (max: ${maxIter})`);
+
+        // Set control variables
+        await setControlVars(currentIteration, maxIter);
+
+        // Counter variable for backward compat
+        const counterVarName = config.counterVariable || `__loop_${node.nodeId}_counter`;
+        await setSessionVariable(sessionId, counterVarName, currentIteration, 'NUMBER');
+
+        // Increment iteration counter
+        await setSessionVariable(sessionId, iterationVar, currentIteration + 1, 'NUMBER');
+
+        return loopBodyTarget;
+    }
+
+    // Unknown loop type — error
+    return handleError(`Unknown loop type: ${loopType}`);
 };
 
 const executeEndNode = async (context: IExecutionContext, node: IFlowNode): Promise<void> => {

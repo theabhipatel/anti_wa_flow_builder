@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { type Node } from '@xyflow/react';
-import { X, Trash2, Plus, Lock, Link, FileText, Package, Timer, Download, AlertTriangle, Lightbulb, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { X, Trash2, Plus, Lock, Link, FileText, Package, Timer, Download, AlertTriangle, Lightbulb, SlidersHorizontal, BarChart3, Repeat, Hash, RefreshCw, List, ArrowDownToLine } from 'lucide-react';
 import api from '../../lib/api';
 import { useParams } from 'react-router-dom';
 
@@ -1343,34 +1343,403 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                 {/* ======================== LOOP ======================== */}
                 {nodeType === 'LOOP' && (
                     <>
-                        <div>
-                            <label className="input-label">Array Variable</label>
-                            <input
-                                value={(config.arrayVariable as string) || ''}
-                                onChange={(e) => updateConfig('arrayVariable', e.target.value)}
-                                className="input-field"
-                                placeholder="{{items}}"
-                            />
+                        {/* ─── Loop Mode ─── */}
+                        <div className="relative">
+                            <label className="input-label">Loop Mode</label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('loop-mode-dropdown');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="input-field w-full flex items-center justify-between cursor-pointer hover:border-teal-400 dark:hover:border-teal-500 transition-colors"
+                            >
+                                <span className="flex items-center gap-2">
+                                    {((config.loopType as string) || 'FOR_EACH') === 'FOR_EACH' && <Repeat className="w-4 h-4 text-teal-500" />}
+                                    {(config.loopType as string) === 'COUNT_BASED' && <Hash className="w-4 h-4 text-indigo-500" />}
+                                    {(config.loopType as string) === 'CONDITION_BASED' && <RefreshCw className="w-4 h-4 text-amber-500" />}
+                                    <span className="text-sm font-medium">
+                                        {((config.loopType as string) || 'FOR_EACH') === 'FOR_EACH' ? 'For Each (Array)'
+                                            : (config.loopType as string) === 'COUNT_BASED' ? 'Count Based'
+                                            : 'Condition Based (While)'}
+                                    </span>
+                                </span>
+                                <svg className="w-4 h-4 text-surface-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+                            </button>
+                            <div
+                                id="loop-mode-dropdown"
+                                className="hidden absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl shadow-black/10 dark:shadow-black/30 overflow-hidden animate-in fade-in slide-in-from-top-1"
+                            >
+                                {[
+                                    { value: 'FOR_EACH', label: 'For Each (Array)', desc: 'Iterate over each item in an array', icon: Repeat, iconColor: 'text-teal-500', bg: 'hover:bg-teal-50 dark:hover:bg-teal-900/20' },
+                                    { value: 'COUNT_BASED', label: 'Count Based', desc: 'Repeat a fixed number of times', icon: Hash, iconColor: 'text-indigo-500', bg: 'hover:bg-indigo-50 dark:hover:bg-indigo-900/20' },
+                                    { value: 'CONDITION_BASED', label: 'Condition Based (While)', desc: 'Repeat while a condition is true', icon: RefreshCw, iconColor: 'text-amber-500', bg: 'hover:bg-amber-50 dark:hover:bg-amber-900/20' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                            updateConfig('loopType', opt.value);
+                                            const el = document.getElementById('loop-mode-dropdown');
+                                            if (el) el.classList.add('hidden');
+                                        }}
+                                        className={`w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors ${opt.bg} ${((config.loopType as string) || 'FOR_EACH') === opt.value ? 'bg-surface-50 dark:bg-surface-700/50' : ''}`}
+                                    >
+                                        <opt.icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${opt.iconColor}`} />
+                                        <div>
+                                            <p className={`text-sm font-medium ${((config.loopType as string) || 'FOR_EACH') === opt.value ? 'text-surface-900 dark:text-white' : 'text-surface-700 dark:text-surface-300'}`}>
+                                                {opt.label}
+                                            </p>
+                                            <p className="text-[11px] text-surface-500 dark:text-surface-400">{opt.desc}</p>
+                                        </div>
+                                        {((config.loopType as string) || 'FOR_EACH') === opt.value && (
+                                            <svg className="w-4 h-4 text-teal-500 mt-0.5 ml-auto flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+
+                        {/* ─── FOR_EACH fields ─── */}
+                        {((config.loopType as string) || 'FOR_EACH') === 'FOR_EACH' && (
+                            <>
+                                <div>
+                                    <label className="input-label">Array Variable</label>
+                                    <input
+                                        value={(config.arrayVariable as string) || ''}
+                                        onChange={(e) => updateConfig('arrayVariable', e.target.value)}
+                                        className="input-field font-mono text-xs"
+                                        placeholder="{{api_response.data.users}}"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">The array to iterate over. Use <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">{'{{variable}}'}</code> syntax.</p>
+                                </div>
+                                <div>
+                                    <label className="input-label">Item Variable Name</label>
+                                    <input
+                                        value={(config.itemVariable as string) || ''}
+                                        onChange={(e) => updateConfig('itemVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="current_item"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores the current array item each iteration</p>
+                                </div>
+                                <div>
+                                    <label className="input-label">Index Variable Name</label>
+                                    <input
+                                        value={(config.indexVariable as string) || ''}
+                                        onChange={(e) => updateConfig('indexVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="loop_index"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores the current 0-based index</p>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ─── COUNT_BASED fields ─── */}
+                        {(config.loopType as string) === 'COUNT_BASED' && (
+                            <>
+                                <div>
+                                    <label className="input-label">Iteration Count</label>
+                                    <input
+                                        type="number"
+                                        value={(config.iterationCount as number) || 10}
+                                        onChange={(e) => updateConfig('iterationCount', Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="input-field"
+                                        min={1}
+                                        max={1000}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="input-label">Start Value</label>
+                                        <input
+                                            type="number"
+                                            value={(config.startValue as number) ?? 0}
+                                            onChange={(e) => updateConfig('startValue', parseInt(e.target.value) || 0)}
+                                            className="input-field"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="input-label">Step</label>
+                                        <input
+                                            type="number"
+                                            value={(config.step as number) ?? 1}
+                                            onChange={(e) => updateConfig('step', parseInt(e.target.value) || 1)}
+                                            className="input-field"
+                                            min={1}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="input-label">Counter Variable</label>
+                                    <input
+                                        value={(config.counterVariable as string) || ''}
+                                        onChange={(e) => updateConfig('counterVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="loop_counter"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Access via <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">{'{{loop_counter}}'}</code></p>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ─── CONDITION_BASED fields ─── */}
+                        {(config.loopType as string) === 'CONDITION_BASED' && (
+                            <>
+                                <div>
+                                    <label className="input-label">Continue Condition</label>
+                                    <input
+                                        value={(config.continueCondition as string) || ''}
+                                        onChange={(e) => updateConfig('continueCondition', e.target.value)}
+                                        className="input-field font-mono text-xs"
+                                        placeholder="{{retry_count}} < 5"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Loop continues while this expression is true. Supports: ==, !=, {'>'}, {'<'}, {'>='},{'<='}</p>
+                                </div>
+                                <div>
+                                    <label className="input-label">Counter Variable</label>
+                                    <input
+                                        value={(config.counterVariable as string) || ''}
+                                        onChange={(e) => updateConfig('counterVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="loop_counter"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* ─── Max Iterations (all modes) ─── */}
                         <div>
-                            <label className="input-label">Item Variable Name</label>
-                            <input
-                                value={(config.itemVariable as string) || ''}
-                                onChange={(e) => updateConfig('itemVariable', e.target.value)}
-                                className="input-field"
-                                placeholder="current_item"
-                            />
-                        </div>
-                        <div>
-                            <label className="input-label">Max Iterations</label>
+                            <label className="input-label">Max Iterations (Safety Limit)</label>
                             <input
                                 type="number"
-                                value={(config.maxIterations as number) || 10}
-                                onChange={(e) => updateConfig('maxIterations', parseInt(e.target.value))}
+                                value={(config.maxIterations as number) || 100}
+                                onChange={(e) => updateConfig('maxIterations', Math.max(1, Math.min(1000, parseInt(e.target.value) || 100)))}
                                 className="input-field"
                                 min={1}
-                                max={100}
+                                max={1000}
                             />
+                            <p className="text-xs text-surface-500 mt-1">Prevents infinite loops. Loop will stop after this many iterations regardless.</p>
+                        </div>
+
+                        {/* ─── Data Mapping (FOR_EACH only) ─── */}
+                        {((config.loopType as string) || 'FOR_EACH') === 'FOR_EACH' && (
+                            <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const el = document.getElementById('loop-mapping-section');
+                                        if (el) el.classList.toggle('hidden');
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                                >
+                                    <span className="flex items-center gap-1.5"><List className="w-3.5 h-3.5" /> Item Data Mapping</span>
+                                    <span className="text-[10px] text-surface-400">{((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || []).length} mappings</span>
+                                </button>
+                                <div id="loop-mapping-section" className="px-3 pb-3 space-y-3">
+                                    <p className="text-xs text-surface-500">Extract fields from each array item into variables using dot notation (e.g. <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">name</code>, <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">address.city</code>)</p>
+                                    <div className="space-y-2">
+                                        {((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || []).map((mapping: { jsonPath: string; variableName: string }, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-1.5">
+                                                <input
+                                                    value={mapping.jsonPath}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], jsonPath: e.target.value };
+                                                        updateConfig('itemMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 font-mono text-xs"
+                                                    placeholder="name"
+                                                />
+                                                <span className="text-xs text-surface-400">→</span>
+                                                <input
+                                                    value={mapping.variableName}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], variableName: e.target.value };
+                                                        updateConfig('itemMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 text-xs"
+                                                    placeholder="user_name"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const mappings = ((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                        updateConfig('itemMapping', mappings);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const mappings = [...((config.itemMapping as Array<{ jsonPath: string; variableName: string }>) || []), { jsonPath: '', variableName: '' }];
+                                            updateConfig('itemMapping', mappings);
+                                        }}
+                                        className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-teal-300 dark:border-teal-600 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Mapping
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── Control Variables ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('loop-control-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span className="flex items-center gap-1.5"><SlidersHorizontal className="w-3.5 h-3.5" /> Control Variables</span>
+                                <span className="text-[10px] text-surface-400">Auto-set</span>
+                            </button>
+                            <div id="loop-control-section" className="hidden px-3 pb-3 space-y-2">
+                                <div>
+                                    <label className="input-label">Count Variable Name</label>
+                                    <input
+                                        value={(config.countVariable as string) || ''}
+                                        onChange={(e) => updateConfig('countVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="loop_count"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Total number of iterations</p>
+                                </div>
+                                <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-2.5 space-y-1">
+                                    <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Auto-set each iteration:</p>
+                                    <div className="grid grid-cols-2 gap-1 text-[10px] text-surface-600 dark:text-surface-400">
+                                        <span><code className="bg-surface-100 dark:bg-surface-700 px-1 rounded">{'{{index_var}}'}</code> → 0-based index</span>
+                                        <span><code className="bg-surface-100 dark:bg-surface-700 px-1 rounded">{'{{count_var}}'}</code> → total count</span>
+                                        <span><code className="bg-surface-100 dark:bg-surface-700 px-1 rounded">loop_is_first</code> → true/false</span>
+                                        <span><code className="bg-surface-100 dark:bg-surface-700 px-1 rounded">loop_is_last</code> → true/false</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Accumulator / Result Collection ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('loop-accumulator-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span className="flex items-center gap-1.5"><ArrowDownToLine className="w-3.5 h-3.5" /> Result Collection</span>
+                                <span className="text-[10px] text-surface-400">{config.collectResults ? 'On' : 'Off'}</span>
+                            </button>
+                            <div id="loop-accumulator-section" className="hidden px-3 pb-3 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="loop-collect-results"
+                                        checked={!!config.collectResults}
+                                        onChange={(e) => updateConfig('collectResults', e.target.checked)}
+                                        className="w-4 h-4 rounded border-surface-300 text-teal-600 focus:ring-teal-500"
+                                    />
+                                    <label htmlFor="loop-collect-results" className="text-xs font-medium text-surface-700 dark:text-surface-300">Collect Results into Array</label>
+                                </div>
+                                {!!config.collectResults && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Result Variable</label>
+                                            <input
+                                                value={(config.resultVariable as string) || ''}
+                                                onChange={(e) => updateConfig('resultVariable', e.target.value)}
+                                                className="input-field text-xs"
+                                                placeholder="loop_results"
+                                            />
+                                            <p className="text-xs text-surface-500 mt-1">Array variable to store collected results after loop completes</p>
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Result JSON Path (optional)</label>
+                                            <input
+                                                value={(config.resultJsonPath as string) || ''}
+                                                onChange={(e) => updateConfig('resultJsonPath', e.target.value)}
+                                                className="input-field text-xs font-mono"
+                                                placeholder="name"
+                                            />
+                                            <p className="text-xs text-surface-500 mt-1">Extract a specific field from each item to collect. Leave empty to collect entire items.</p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ─── Error Handling ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('loop-error-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Error Handling</span>
+                                <span className="text-[10px] text-surface-400">{(config.errorVariable as string) ? 'Configured' : 'Optional'}</span>
+                            </button>
+                            <div id="loop-error-section" className="hidden px-3 pb-3 space-y-3">
+                                {((config.loopType as string) || 'FOR_EACH') === 'FOR_EACH' && (
+                                    <div>
+                                        <label className="input-label">On Empty Array</label>
+                                        <div className="flex gap-2">
+                                            {[
+                                                { value: 'SKIP', label: 'Skip to Done', icon: '→' },
+                                                { value: 'ERROR', label: 'Go to Error', icon: '⚠' },
+                                            ].map((opt) => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => updateConfig('onEmptyArray', opt.value)}
+                                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                                                        ((config.onEmptyArray as string) || 'SKIP') === opt.value
+                                                            ? opt.value === 'SKIP'
+                                                                ? 'bg-teal-50 dark:bg-teal-900/20 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300'
+                                                                : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300'
+                                                            : 'bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-500 hover:border-surface-300 dark:hover:border-surface-600'
+                                                    }`}
+                                                >
+                                                    <span>{opt.icon}</span> {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="input-label">Error Variable</label>
+                                    <input
+                                        value={(config.errorVariable as string) || ''}
+                                        onChange={(e) => updateConfig('errorVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="loop_error"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores error message when loop fails (invalid array, etc.)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Tips ─── */}
+                        <div className="bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-800 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-teal-700 dark:text-teal-400 mb-1"><Lightbulb className="w-3.5 h-3.5 inline mr-1" />Tips</p>
+                            <ul className="text-xs text-teal-600 dark:text-teal-400 space-y-1 list-disc list-inside">
+                                <li>Connect <strong>Loop Body</strong> (green) to nodes that execute each iteration</li>
+                                <li>The <strong>last node in the loop body must connect back</strong> to this Loop node to continue iterations</li>
+                                <li>Connect <strong>Done</strong> (teal) to the node that runs after the loop</li>
+                                <li>Connect <strong>Error</strong> (red) for error handling (empty array, invalid data)</li>
+                                <li>Use <strong>Data Mapping</strong> to extract fields: <code className="bg-teal-100 dark:bg-teal-900/30 px-1 rounded">name → user_name</code></li>
+                                <li>Use <strong>Result Collection</strong> to accumulate data from each iteration into an array</li>
+                                <li>Access <code className="bg-teal-100 dark:bg-teal-900/30 px-1 rounded">{'{{item_var}}'}</code>, <code className="bg-teal-100 dark:bg-teal-900/30 px-1 rounded">{'{{index_var}}'}</code> in loop body nodes</li>
+                            </ul>
                         </div>
                     </>
                 )}

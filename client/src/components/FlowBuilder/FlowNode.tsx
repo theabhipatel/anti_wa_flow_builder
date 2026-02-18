@@ -13,6 +13,8 @@ import {
     ArrowRightCircle,
     Copy,
     Trash2,
+    Hash,
+    RefreshCw,
 } from 'lucide-react';
 
 const nodeIcons: Record<string, React.ElementType> = {
@@ -167,7 +169,12 @@ export default function FlowNode({ data, selected }: NodeProps) {
     const isEndNode = nodeType === 'END';
     const isApiNode = nodeType === 'API';
     const isAiNode = nodeType === 'AI';
+    const isLoopNode = nodeType === 'LOOP';
     const hasDualHandles = isConditionNode || isApiNode || isAiNode;
+    const hasTripleHandles = isLoopNode;
+
+    // Get loop mode for badge
+    const loopMode = isLoopNode ? (nodeData.config?.loopType as string) || 'FOR_EACH' : '';
 
     // Get buttons for BUTTON node
     const buttons: ButtonItem[] = isButtonNode
@@ -290,8 +297,49 @@ export default function FlowNode({ data, selected }: NodeProps) {
                 </div>
             )}
 
-            {/* Dual outputs: Condition = True/False, API/AI = Success/Error */}
-            {hasDualHandles ? (
+            {/* Loop node — show mode badge */}
+            {isLoopNode && (
+                <div className="border-t border-teal-200/60 dark:border-teal-700/40 px-4 py-1.5 flex items-center gap-1.5">
+                    {loopMode === 'FOR_EACH' && <Repeat className="w-3 h-3 text-teal-500" />}
+                    {loopMode === 'COUNT_BASED' && <Hash className="w-3 h-3 text-indigo-500" />}
+                    {loopMode === 'CONDITION_BASED' && <RefreshCw className="w-3 h-3 text-amber-500" />}
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
+                        {loopMode === 'FOR_EACH' ? 'For Each' : loopMode === 'COUNT_BASED' ? 'Count' : 'While'}
+                    </span>
+                </div>
+            )}
+
+            {/* Triple outputs: LOOP = Loop Body / Done / Error */}
+            {hasTripleHandles ? (
+                <>
+                    <div className="border-t border-surface-200/40 dark:border-surface-700/25 px-4 py-1 flex justify-between items-center">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Body</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">Done</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-red-500 dark:text-red-400">Error</span>
+                    </div>
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id="loop-body"
+                        style={{ top: '30%', background: '#10b981' }}
+                        className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id="done"
+                        style={{ top: '55%', background: '#14b8a6' }}
+                        className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id="error"
+                        style={{ top: '80%', background: '#ef4444' }}
+                        className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
+                    />
+                </>
+            ) : hasDualHandles ? (
                 <>
                     <div className="border-t border-surface-200/40 dark:border-surface-700/25 px-4 py-1.5 flex justify-between items-center">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">

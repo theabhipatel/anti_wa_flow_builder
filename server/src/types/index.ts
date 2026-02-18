@@ -14,7 +14,8 @@ export type TInputType = 'TEXT' | 'NUMBER' | 'EMAIL' | 'PHONE' | 'CUSTOM_REGEX';
 export type THttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 export type TAuthType = 'NONE' | 'BEARER' | 'API_KEY' | 'BASIC_AUTH' | 'CUSTOM_HEADER';
 export type TContentType = 'JSON' | 'FORM_URLENCODED' | 'RAW';
-export type TLoopType = 'COUNT_BASED' | 'CONDITION_BASED';
+export type TLoopType = 'FOR_EACH' | 'COUNT_BASED' | 'CONDITION_BASED';
+export type TOnEmptyArray = 'SKIP' | 'ERROR';
 export type TEndType = 'NORMAL' | 'ERROR';
 export type TSessionAction = 'KEEP_ACTIVE' | 'CLOSE_SESSION';
 export type TConditionType = 'KEYWORD_MATCH' | 'VARIABLE_COMPARISON' | 'LOGICAL_EXPRESSION';
@@ -414,14 +415,49 @@ export interface IAiNodeConfig {
     failureNextNodeId?: string;
 }
 
+export interface ILoopItemMapping {
+    jsonPath: string;
+    variableName: string;
+}
+
 export interface ILoopNodeConfig {
     loopType: TLoopType;
+
+    // FOR_EACH mode
+    arrayVariable?: string;
+    itemVariable?: string;
+    indexVariable?: string;
+    itemMapping?: ILoopItemMapping[];
+
+    // COUNT_BASED mode
     iterationCount?: number;
-    currentIterationVariable?: string;
-    exitCondition?: string;
+    startValue?: number;
+    step?: number;
+    counterVariable?: string;
+
+    // CONDITION_BASED mode
+    continueCondition?: string;
+
+    // Shared
     maxIterations: number;
+    currentIterationVariable?: string;
+
+    // Control variables
+    countVariable?: string;
+
+    // Accumulator
+    collectResults?: boolean;
+    resultVariable?: string;
+    resultJsonPath?: string;
+
+    // Error handling
+    onEmptyArray?: TOnEmptyArray;
+    errorVariable?: string;
+
+    // Navigation (edge-based)
     loopBodyNextNodeId?: string;
     exitNextNodeId?: string;
+    errorNextNodeId?: string;
 }
 
 export interface IEndNodeConfig {
