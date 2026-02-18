@@ -13,8 +13,8 @@ const seedUsers = async (): Promise<void> => {
         console.log('✅ Connected to MongoDB for seeding');
 
         const defaultUsers = [
-            { email: 'admin@gmail.com', password: '123456', role: 'ADMIN' as const },
-            { email: 'abhi@gmail.com', password: '123456', role: 'USER' as const },
+            { firstName: 'Admin', lastName: 'User', email: 'admin@gmail.com', password: '123456', role: 'ADMIN' as const },
+            { firstName: 'Abhi', lastName: 'Patel', email: 'abhi@gmail.com', password: '123456', role: 'USER' as const },
         ];
 
         for (const userData of defaultUsers) {
@@ -26,6 +26,8 @@ const seedUsers = async (): Promise<void> => {
 
             const passwordHash = await bcrypt.hash(userData.password, 10);
             await User.create({
+                firstName: userData.firstName,
+                lastName: userData.lastName,
                 email: userData.email,
                 passwordHash,
                 role: userData.role,

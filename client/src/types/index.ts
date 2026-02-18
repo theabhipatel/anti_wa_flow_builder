@@ -13,6 +13,8 @@ export type TVariableType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'OBJECT' | 'ARRAY'
 
 export interface IUser {
     id: string;
+    firstName: string;
+    lastName: string;
     email: string;
     role: TUserRole;
 }

@@ -25,6 +25,8 @@ export type TConditionType = 'KEYWORD_MATCH' | 'VARIABLE_COMPARISON' | 'LOGICAL_
 
 export interface IUser extends Document {
     _id: Types.ObjectId;
+    firstName: string;
+    lastName: string;
     email: string;
     passwordHash: string;
     role: TUserRole;
@@ -443,6 +445,8 @@ export interface IAuthLoginRequest {
 }
 
 export interface IAuthRegisterRequest {
+    firstName: string;
+    lastName: string;
     email: string;
     password: string;
 }
@@ -451,6 +455,8 @@ export interface IAuthResponse {
     token: string;
     user: {
         id: string;
+        firstName: string;
+        lastName: string;
         email: string;
         role: TUserRole;
     };

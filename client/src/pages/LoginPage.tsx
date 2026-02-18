@@ -6,6 +6,8 @@ import api from '../lib/api';
 import { MessageSquare, Eye, EyeOff, Loader2, User, Shield, Zap, GitBranch, Bot } from 'lucide-react';
 
 export default function LoginPage() {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +24,10 @@ export default function LoginPage() {
 
         try {
             const endpoint = isRegister ? '/auth/register' : '/auth/login';
-            const res = await api.post(endpoint, { email, password });
+            const payload = isRegister
+                ? { firstName, lastName, email, password }
+                : { email, password };
+            const res = await api.post(endpoint, payload);
 
             if (res.data.success) {
                 dispatch(loginSuccess(res.data.data));
@@ -156,7 +161,7 @@ export default function LoginPage() {
                     />
                 </div>
 
-                <div className="relative w-full max-w-sm px-6 sm:px-8 animate-fade-in">
+                <div className="relative w-full max-w-md px-6 sm:px-8 animate-fade-in">
                     {/* Mobile-only logo (hidden on lg) */}
                     <div className="lg:hidden text-center mb-6">
                         <div className="relative inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 mb-3 shadow-xl shadow-brand-500/25">
@@ -199,6 +204,38 @@ export default function LoginPage() {
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {isRegister && (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-surface-300 mb-1.5">First Name</label>
+                                        <input
+                                            type="text"
+                                            value={firstName}
+                                            onChange={(e) => setFirstName(e.target.value)}
+                                            placeholder="Abhi"
+                                            className="w-full px-3.5 py-2.5 rounded-lg text-sm text-white placeholder-surface-600 transition-all duration-200 focus:outline-none"
+                                            style={inputStyle}
+                                            onFocus={handleFocus}
+                                            onBlur={handleBlur}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-surface-300 mb-1.5">Last Name</label>
+                                        <input
+                                            type="text"
+                                            value={lastName}
+                                            onChange={(e) => setLastName(e.target.value)}
+                                            placeholder="Patel"
+                                            className="w-full px-3.5 py-2.5 rounded-lg text-sm text-white placeholder-surface-600 transition-all duration-200 focus:outline-none"
+                                            style={inputStyle}
+                                            onFocus={handleFocus}
+                                            onBlur={handleBlur}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-surface-300 mb-1.5">Email</label>
                                 <input

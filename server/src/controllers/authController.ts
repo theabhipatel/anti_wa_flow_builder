@@ -42,6 +42,8 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
                 token,
                 user: {
                     id: user._id.toString(),
+                    firstName: user.firstName,
+                    lastName: user.lastName,
                     email: user.email,
                     role: user.role,
                 },
@@ -54,10 +56,10 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { email, password } = req.body;
+        const { firstName, lastName, email, password } = req.body;
 
-        if (!email || !password) {
-            res.status(400).json({ success: false, error: 'Email and password are required' });
+        if (!firstName || !lastName || !email || !password) {
+            res.status(400).json({ success: false, error: 'First name, last name, email and password are required' });
             return;
         }
 
@@ -74,6 +76,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 
         const passwordHash = await bcrypt.hash(password, 10);
         const user = await User.create({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
             email: email.toLowerCase(),
             passwordHash,
             role: 'USER',
@@ -93,6 +97,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
                 token,
                 user: {
                     id: user._id.toString(),
+                    firstName: user.firstName,
+                    lastName: user.lastName,
                     email: user.email,
                     role: user.role,
                 },
@@ -120,6 +126,8 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
             success: true,
             data: {
                 id: user._id.toString(),
+                firstName: user.firstName,
+                lastName: user.lastName,
                 email: user.email,
                 role: user.role,
             },
