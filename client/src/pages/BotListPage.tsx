@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { IBot } from '../types';
 import { Plus, Bot, Settings, GitBranch, Phone, Trash2, Loader2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 export default function BotListPage() {
     const [bots, setBots] = useState<IBot[]>([]);
@@ -11,7 +13,9 @@ export default function BotListPage() {
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
     const [creating, setCreating] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; botId: string }>({ isOpen: false, botId: '' });
     const navigate = useNavigate();
+    const toast = useToast();
 
     const fetchBots = async () => {
         try {
@@ -47,12 +51,14 @@ export default function BotListPage() {
     };
 
     const handleDelete = async (botId: string) => {
-        if (!window.confirm('Are you sure? This will delete all flows, sessions, and data.')) return;
+        setConfirmModal({ isOpen: false, botId: '' });
         try {
             await api.delete(`/bots/${botId}`);
             setBots(bots.filter((b) => b._id !== botId));
+            toast.success('Bot deleted successfully');
         } catch (err) {
             console.error(err);
+            toast.error('Failed to delete bot');
         }
     };
 
@@ -118,7 +124,7 @@ export default function BotListPage() {
                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
                                     <Bot className="w-5 h-5 text-white" />
                                 </div>
-                                <button onClick={() => handleDelete(bot._id)} className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-all">
+                                <button onClick={() => setConfirmModal({ isOpen: true, botId: bot._id })} className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-all">
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
@@ -150,6 +156,16 @@ export default function BotListPage() {
                     ))}
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title="Delete Bot"
+                message="Are you sure? This will delete all flows, sessions, and data. This action cannot be undone."
+                confirmLabel="Delete Bot"
+                variant="danger"
+                onConfirm={() => handleDelete(confirmModal.botId)}
+                onCancel={() => setConfirmModal({ isOpen: false, botId: '' })}
+            />
         </div>
     );
 }

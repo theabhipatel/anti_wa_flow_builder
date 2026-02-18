@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { IFlow } from '../types';
 import { Plus, GitBranch, ArrowLeft, Trash2, CheckCircle, Clock, Loader2, Copy, ShieldCheck } from 'lucide-react';
+import ConfirmModal from './ConfirmModal';
+import { useToast } from './Toast';
 
 export default function FlowListPage() {
     const { botId } = useParams();
@@ -14,6 +16,8 @@ export default function FlowListPage() {
     const [newDesc, setNewDesc] = useState('');
     const [creating, setCreating] = useState(false);
     const [duplicatingFlowId, setDuplicatingFlowId] = useState<string | null>(null);
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; flowId: string }>({ isOpen: false, flowId: '' });
+    const toast = useToast();
 
     const fetchFlows = async () => {
         try {
@@ -56,13 +60,14 @@ export default function FlowListPage() {
     };
 
     const handleDelete = async (flowId: string) => {
-        if (!confirm('Delete this flow and all its versions?')) return;
+        setConfirmModal({ isOpen: false, flowId: '' });
         try {
             await api.delete(`/bots/${botId}/flows/${flowId}`);
             setFlows(flows.filter((f) => f._id !== flowId));
+            toast.success('Flow deleted successfully');
         } catch (err) {
             console.error(err);
-            alert('Failed to delete flow. Main flow cannot be deleted.');
+            toast.error('Failed to delete flow. Main flow cannot be deleted.');
         }
     };
 
@@ -72,10 +77,11 @@ export default function FlowListPage() {
             const res = await api.post(`/bots/${botId}/flows/${flowId}/duplicate`);
             if (res.data.success) {
                 fetchFlows();
+                toast.success('Flow duplicated successfully');
             }
         } catch (err) {
             console.error(err);
-            alert('Failed to duplicate flow');
+            toast.error('Failed to duplicate flow');
         } finally {
             setDuplicatingFlowId(null);
         }
@@ -141,8 +147,8 @@ export default function FlowListPage() {
                                 }`}
                         >
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${flow.isMainFlow
-                                    ? 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white shadow-lg shadow-brand-500/20'
-                                    : 'bg-gradient-to-br from-surface-100 to-surface-200 dark:from-surface-700 dark:to-surface-800 text-surface-500 dark:text-surface-400'
+                                ? 'bg-gradient-to-br from-brand-500 to-indigo-600 text-white shadow-lg shadow-brand-500/20'
+                                : 'bg-gradient-to-br from-surface-100 to-surface-200 dark:from-surface-700 dark:to-surface-800 text-surface-500 dark:text-surface-400'
                                 }`}>
                                 {flow.isMainFlow ? <ShieldCheck className="w-5 h-5" /> : <GitBranch className="w-5 h-5" />}
                             </div>
@@ -194,7 +200,7 @@ export default function FlowListPage() {
                                             )}
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(flow._id)}
+                                            onClick={() => setConfirmModal({ isOpen: true, flowId: flow._id })}
                                             className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors"
                                             title="Delete Subflow"
                                         >
@@ -207,6 +213,16 @@ export default function FlowListPage() {
                     ))}
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title="Delete Flow"
+                message="Delete this flow and all its versions? This action cannot be undone."
+                confirmLabel="Delete Flow"
+                variant="danger"
+                onConfirm={() => handleDelete(confirmModal.flowId)}
+                onCancel={() => setConfirmModal({ isOpen: false, flowId: '' })}
+            />
         </div>
     );
 }

@@ -5,6 +5,8 @@ import {
     Brain, Activity, BarChart3, AlertCircle, CheckCircle2,
     Clock, Zap, ChevronLeft, ChevronRight, ChevronDown,
 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 // ─── Types ──────────────────────────────────────────────────────
 interface AIProvider {
@@ -113,6 +115,8 @@ function ProvidersTab() {
     const [testResult, setTestResult] = useState<{ id: string; valid: boolean } | null>(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const toast = useToast();
 
     // Form state
     const [formData, setFormData] = useState({
@@ -189,13 +193,14 @@ function ProvidersTab() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this AI provider?')) return;
+        setConfirmDeleteId(null);
         try {
             await api.delete(`/ai-providers/${id}`);
             fetchProviders();
-            setSuccess('Provider deleted');
+            toast.success('Provider deleted');
         } catch (err) {
             console.error(err);
+            toast.error('Failed to delete provider');
         }
     };
 
@@ -384,7 +389,7 @@ function ProvidersTab() {
                                 <Edit2 className="w-4 h-4 text-surface-500" />
                             </button>
                             <button
-                                onClick={() => handleDelete(provider._id)}
+                                onClick={() => setConfirmDeleteId(provider._id)}
                                 className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                 title="Delete"
                             >
@@ -394,6 +399,16 @@ function ProvidersTab() {
                     </div>
                 ))}
             </div>
+
+            <ConfirmModal
+                isOpen={!!confirmDeleteId}
+                title="Delete AI Provider"
+                message="Are you sure you want to delete this AI provider? This action cannot be undone."
+                confirmLabel="Delete Provider"
+                variant="danger"
+                onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+                onCancel={() => setConfirmDeleteId(null)}
+            />
         </div>
     );
 }
@@ -719,8 +734,8 @@ function CustomSelect({
                             type="button"
                             onClick={() => { onChange(opt.value); setOpen(false); }}
                             className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${opt.value === value
-                                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 font-medium'
-                                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                                ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 font-medium'
+                                : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
                                 }`}
                         >
                             {opt.icon}

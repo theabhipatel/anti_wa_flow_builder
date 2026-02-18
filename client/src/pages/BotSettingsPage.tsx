@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { IBot, IBotVariable } from '../types';
 import { ArrowLeft, Phone, Check, X, Plus, Trash2, Loader2, Save, Copy, Link, Shield, Wifi, WifiOff, MessageCircle } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -29,6 +31,8 @@ export default function BotSettingsPage() {
     const [waSuccess, setWaSuccess] = useState('');
     const [copied, setCopied] = useState(false);
     const [settingsSaved, setSettingsSaved] = useState(false);
+    const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+    const toast = useToast();
 
     // Variables
     const [variables, setVariables] = useState<IBotVariable[]>([]);
@@ -70,8 +74,10 @@ export default function BotSettingsPage() {
         setSaving(true);
         try {
             await api.put(`/bots/${botId}`, { name, description, defaultFallbackMessage: defaultFallbackMessage || undefined });
+            toast.success('Bot settings saved');
         } catch (err) {
             console.error(err);
+            toast.error('Failed to save bot settings');
         } finally {
             setSaving(false);
         }
@@ -119,7 +125,7 @@ export default function BotSettingsPage() {
     };
 
     const disconnectWhatsApp = async () => {
-        if (!confirm('Disconnect WhatsApp?')) return;
+        setShowDisconnectModal(false);
         try {
             await api.delete(`/bots/${botId}/whatsapp/disconnect`);
             setBot({ ...bot!, isWhatsAppConnected: false });
@@ -130,8 +136,10 @@ export default function BotSettingsPage() {
             setSettingsSaved(false);
             setWaSuccess('');
             setWaError('');
+            toast.success('WhatsApp disconnected');
         } catch (err) {
             console.error(err);
+            toast.error('Failed to disconnect WhatsApp');
         }
     };
 
@@ -255,8 +263,8 @@ export default function BotSettingsPage() {
                         <button
                             onClick={copyWebhookUrl}
                             className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shrink-0 ${copied
-                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                                    : 'bg-brand-500 hover:bg-brand-600 text-white'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-brand-500 hover:bg-brand-600 text-white'
                                 }`}
                         >
                             {copied ? (
@@ -317,8 +325,8 @@ export default function BotSettingsPage() {
                                 onClick={checkConnection}
                                 disabled={waChecking}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${bot?.isWhatsAppConnected
-                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50'
-                                        : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50'
+                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50'
                                     }`}
                             >
                                 {waChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
@@ -328,7 +336,7 @@ export default function BotSettingsPage() {
 
                         {/* Disconnect */}
                         {settingsSaved && (
-                            <button onClick={disconnectWhatsApp} className="btn-danger flex items-center gap-2">
+                            <button onClick={() => setShowDisconnectModal(true)} className="btn-danger flex items-center gap-2">
                                 <X className="w-4 h-4" /> Disconnect
                             </button>
                         )}
@@ -361,6 +369,16 @@ export default function BotSettingsPage() {
                     <button onClick={addVariable} className="btn-primary px-3"><Plus className="w-4 h-4" /></button>
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={showDisconnectModal}
+                title="Disconnect WhatsApp"
+                message="Are you sure you want to disconnect WhatsApp? You will need to reconfigure the connection to use it again."
+                confirmLabel="Disconnect"
+                variant="warning"
+                onConfirm={disconnectWhatsApp}
+                onCancel={() => setShowDisconnectModal(false)}
+            />
         </div>
     );
 }

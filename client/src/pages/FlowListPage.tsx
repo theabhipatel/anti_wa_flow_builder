@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { IFlow } from '../types';
 import { Plus, GitBranch, ArrowLeft, Trash2, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 export default function FlowListPage() {
     const { botId } = useParams();
@@ -13,6 +15,8 @@ export default function FlowListPage() {
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
     const [creating, setCreating] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; flowId: string }>({ isOpen: false, flowId: '' });
+    const toast = useToast();
 
     const fetchFlows = async () => {
         try {
@@ -47,12 +51,14 @@ export default function FlowListPage() {
     };
 
     const handleDelete = async (flowId: string) => {
-        if (!confirm('Delete this flow and all its versions?')) return;
+        setConfirmModal({ isOpen: false, flowId: '' });
         try {
             await api.delete(`/bots/${botId}/flows/${flowId}`);
             setFlows(flows.filter((f) => f._id !== flowId));
+            toast.success('Flow deleted successfully');
         } catch (err) {
             console.error(err);
+            toast.error('Failed to delete flow');
         }
     };
 
@@ -137,7 +143,7 @@ export default function FlowListPage() {
                                 >
                                     Open Builder
                                 </button>
-                                <button onClick={() => handleDelete(flow._id)} className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-all">
+                                <button onClick={() => setConfirmModal({ isOpen: true, flowId: flow._id })} className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-all">
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
@@ -145,6 +151,16 @@ export default function FlowListPage() {
                     ))}
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title="Delete Flow"
+                message="Delete this flow and all its versions? This action cannot be undone."
+                confirmLabel="Delete Flow"
+                variant="danger"
+                onConfirm={() => handleDelete(confirmModal.flowId)}
+                onCancel={() => setConfirmModal({ isOpen: false, flowId: '' })}
+            />
         </div>
     );
 }
