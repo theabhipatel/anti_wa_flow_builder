@@ -1,5 +1,5 @@
 import { type EdgeProps, getSmoothStepPath, BaseEdge, EdgeLabelRenderer } from '@xyflow/react';
-import { X } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 interface DeletableEdgeProps extends EdgeProps {
     data?: {
@@ -80,24 +80,27 @@ export default function DeletableEdge({
                             pointerEvents: 'all',
                         }}
                     >
-                        <button
+                        <div
+                            className="
+                                w-6 h-6 rounded-lg
+                                bg-surface-50 dark:bg-surface-800
+                                border border-surface-200 dark:border-surface-700
+                                shadow-md hover:shadow-lg
+                                flex items-center justify-center
+                                transition-all duration-200
+                                cursor-pointer group
+                                hover:bg-red-50 dark:hover:bg-red-900/20
+                                hover:border-red-200 dark:hover:border-red-800
+                                text-surface-500 hover:text-red-500
+                            "
                             onClick={(e) => {
                                 e.stopPropagation();
                                 data?.onDelete?.(id);
                             }}
-                            className="
-                                w-7 h-7 rounded-full
-                                bg-red-500 hover:bg-red-600
-                                text-white shadow-lg shadow-red-500/30
-                                flex items-center justify-center
-                                transition-all duration-150
-                                hover:scale-110 active:scale-95
-                                border-2 border-white dark:border-surface-800
-                            "
-                            title="Delete edge"
+                            title="Delete Edge"
                         >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
+                            <Trash2 className="w-3 h-3 transition-transform group-hover:scale-110" />
+                        </div>
                     </div>
                 </EdgeLabelRenderer>
             )}
