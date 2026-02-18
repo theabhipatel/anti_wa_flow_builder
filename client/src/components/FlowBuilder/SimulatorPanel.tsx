@@ -24,6 +24,7 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
     const [resumeAt, setResumeAt] = useState<Date | null>(null);
     const [countdown, setCountdown] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const lastPollTimeRef = useRef<string | null>(null);
     const pollAttemptsRef = useRef(0);
@@ -31,6 +32,13 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // Re-focus chat input after loading finishes
+    useEffect(() => {
+        if (!loading) {
+            inputRef.current?.focus();
+        }
+    }, [loading]);
 
     // Show welcome prompt instead of auto-starting the flow
     useEffect(() => {
@@ -345,11 +353,13 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
             {/* Input */}
             <form onSubmit={handleSubmit} className="p-3 border-t border-surface-200 dark:border-surface-700 flex gap-2">
                 <input
+                    ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     className="input-field flex-1"
                     placeholder="Type a message..."
                     disabled={loading}
+                    autoFocus
                 />
                 <button type="submit" disabled={loading || !input.trim()} className="p-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors">
                     <Send className="w-4 h-4" />
