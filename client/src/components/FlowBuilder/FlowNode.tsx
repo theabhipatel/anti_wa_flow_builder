@@ -165,6 +165,9 @@ export default function FlowNode({ data, selected }: NodeProps) {
     const isButtonNode = nodeType === 'BUTTON';
     const isConditionNode = nodeType === 'CONDITION';
     const isEndNode = nodeType === 'END';
+    const isApiNode = nodeType === 'API';
+    const isAiNode = nodeType === 'AI';
+    const hasDualHandles = isConditionNode || isApiNode || isAiNode;
 
     // Get buttons for BUTTON node
     const buttons: ButtonItem[] = isButtonNode
@@ -287,24 +290,28 @@ export default function FlowNode({ data, selected }: NodeProps) {
                 </div>
             )}
 
-            {/* Condition has dual outputs */}
-            {isConditionNode ? (
+            {/* Dual outputs: Condition = True/False, API/AI = Success/Error */}
+            {hasDualHandles ? (
                 <>
-                    <div className="border-t border-orange-200/40 dark:border-orange-700/25 px-4 py-1.5 flex justify-between items-center">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">True</span>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-red-500 dark:text-red-400">False</span>
+                    <div className="border-t border-surface-200/40 dark:border-surface-700/25 px-4 py-1.5 flex justify-between items-center">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                            {isConditionNode ? 'True' : 'Success'}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-red-500 dark:text-red-400">
+                            {isConditionNode ? 'False' : 'Error'}
+                        </span>
                     </div>
                     <Handle
                         type="source"
                         position={Position.Right}
-                        id="true"
+                        id={isConditionNode ? 'true' : 'success'}
                         style={{ top: '40%', background: '#10b981' }}
                         className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
                     />
                     <Handle
                         type="source"
                         position={Position.Right}
-                        id="false"
+                        id={isConditionNode ? 'false' : 'error'}
                         style={{ top: '70%', background: '#ef4444' }}
                         className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
                     />

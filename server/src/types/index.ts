@@ -32,10 +32,40 @@ export interface IUser extends Document {
     updatedAt: Date;
 }
 
-export interface IOpenAIAccount extends Document {
+export type TAIProvider = 'OPENAI' | 'GEMINI' | 'GROQ' | 'MISTRAL' | 'OPENROUTER' | 'CUSTOM';
+export type TAIApiLogStatus = 'SUCCESS' | 'ERROR';
+
+export interface IAIProvider extends Document {
     _id: Types.ObjectId;
     userId: Types.ObjectId;
+    name: string;
+    provider: TAIProvider;
+    baseUrl: string;
     apiKey: string; // Encrypted
+    defaultModel: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface IAIApiLog extends Document {
+    _id: Types.ObjectId;
+    userId: Types.ObjectId;
+    botId: Types.ObjectId;
+    sessionId?: Types.ObjectId;
+    nodeId: string;
+    nodeLabel: string;
+    aiProviderId?: Types.ObjectId;
+    providerName: string;
+    provider: string;
+    modelName: string;
+    status: TAIApiLogStatus;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    errorMessage: string | null;
+    errorCode: string | null;
+    responseTimeMs: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -335,18 +365,49 @@ export interface IApiNodeConfig {
 }
 
 export interface IAiNodeConfig {
+    // Provider
+    aiProviderId?: string;
+    customBaseUrl?: string;
+    customApiKey?: string;
     model: string;
-    temperature?: number;
+
+    // Prompt
     systemPrompt?: string;
     userMessage: string;
-    userPrompt?: string; // legacy alias
     includeHistory?: boolean;
     historyLength?: number;
+
+    // Parameters
+    temperature?: number;
     maxTokens?: number;
-    responseVariable: string;
-    storeResponseIn?: string; // legacy alias
+    topP?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    stopSequences?: string[];
+    seed?: number;
+    responseFormat?: 'text' | 'json_object';
+
+    // Response Handling
     sendToUser?: boolean;
-    fallback?: string;
+    responseVariable?: string;
+    storeEntireResponse?: boolean;
+    storeResponseIn?: string;
+    responseMapping?: IApiResponseMapping[];
+
+    // Token Usage
+    storeTokenUsage?: boolean;
+    tokenUsageVariable?: string;
+
+    // Error Handling
+    errorVariable?: string;
+    fallbackMessage?: string;
+
+    // Timeout & Retry
+    timeout?: number;
+    retryEnabled?: boolean;
+    retry?: { max: number; delay: number };
+
+    // Navigation (edge-based)
     successNextNodeId?: string;
     failureNextNodeId?: string;
 }

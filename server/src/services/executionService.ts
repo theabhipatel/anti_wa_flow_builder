@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import { Flow, FlowVersion, Session, Message, ExecutionLog, OpenAIAccount, WhatsAppAccount } from '../models';
+import { Flow, FlowVersion, Session, Message, ExecutionLog, AIProvider, WhatsAppAccount } from '../models';
 import {
     IFlowNode,
     IFlowData,
@@ -19,7 +19,7 @@ import {
 import { resolveVariables, setSessionVariable, getVariableMap } from '../utils/variableResolver';
 import { decrypt } from '../utils/encryption';
 import * as whatsappService from './whatsappService';
-import * as openaiService from './openaiService';
+import * as aiService from './aiService';
 import * as sessionService from './sessionService';
 import axios from 'axios';
 
@@ -1016,9 +1016,9 @@ const executeApiNode = async (context: IExecutionContext, node: IFlowNode): Prom
         if (config.responseVariable) {
             const varType = typeof responseData === 'number' ? 'NUMBER'
                 : typeof responseData === 'boolean' ? 'BOOLEAN'
-                : Array.isArray(responseData) ? 'ARRAY'
-                : typeof responseData === 'object' ? 'OBJECT'
-                : 'STRING';
+                    : Array.isArray(responseData) ? 'ARRAY'
+                        : typeof responseData === 'object' ? 'OBJECT'
+                            : 'STRING';
             await setSessionVariable(context.session._id, config.responseVariable, responseData, varType);
         }
 
@@ -1040,9 +1040,9 @@ const executeApiNode = async (context: IExecutionContext, node: IFlowNode): Prom
                     if (value !== undefined) {
                         const varType = typeof value === 'number' ? 'NUMBER'
                             : typeof value === 'boolean' ? 'BOOLEAN'
-                            : Array.isArray(value) ? 'ARRAY'
-                            : typeof value === 'object' ? 'OBJECT'
-                            : 'STRING';
+                                : Array.isArray(value) ? 'ARRAY'
+                                    : typeof value === 'object' ? 'OBJECT'
+                                        : 'STRING';
                         await setSessionVariable(context.session._id, mapping.variableName, value, varType);
                     }
                 }
@@ -1092,19 +1092,41 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
     const config = node.config as IAiNodeConfig;
 
     try {
-        // Get user's OpenAI key
+        // ─── Resolve Provider ────────────────────────────────────
         const bot = await import('../models').then((m) => m.Bot.findById(context.session.botId));
         if (!bot) throw new Error('Bot not found');
 
-        const openaiAccount = await OpenAIAccount.findOne({ userId: bot.userId });
-        if (!openaiAccount) {
-            throw new Error('OpenAI API key not configured. Please add your key in settings.');
+        let apiKey: string;
+        let baseUrl: string;
+        let providerName = 'Custom';
+        let providerType = 'CUSTOM';
+        let aiProviderId: import('mongoose').Types.ObjectId | undefined;
+
+        if (config.aiProviderId) {
+            // Use saved provider — scoped to the bot's owner
+            const provider = await AIProvider.findOne({ _id: config.aiProviderId, userId: bot.userId });
+            if (!provider) {
+                throw new Error('AI provider not found or not authorized');
+            }
+            if (!provider.isActive) {
+                throw new Error(`AI provider "${provider.name}" is disabled`);
+            }
+            apiKey = decrypt(provider.apiKey);
+            baseUrl = provider.baseUrl;
+            providerName = provider.name;
+            providerType = provider.provider;
+            aiProviderId = provider._id;
+        } else if (config.customApiKey && config.customBaseUrl) {
+            // Inline override — resolve variables
+            apiKey = await resolveVariables(config.customApiKey, context.session._id, context.session.botId);
+            baseUrl = await resolveVariables(config.customBaseUrl, context.session._id, context.session.botId);
+            providerName = 'Inline Override';
+        } else {
+            throw new Error('No AI provider configured. Please select a provider in the AI node settings or add one in AI Management.');
         }
 
-        const apiKey = decrypt(openaiAccount.apiKey);
-
-        // Build messages array
-        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+        // ─── Build Messages ──────────────────────────────────────
+        const messages: aiService.IChatMessage[] = [];
 
         if (config.systemPrompt) {
             const resolvedSystem = await resolveVariables(config.systemPrompt, context.session._id, context.session.botId);
@@ -1122,26 +1144,96 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
             }
         }
 
-        // User prompt
-        const userPromptText = config.userMessage || config.userPrompt || '';
-        const resolvedUserPrompt = await resolveVariables(userPromptText, context.session._id, context.session.botId);
-        messages.push({ role: 'user', content: resolvedUserPrompt });
+        // User message (resolve variables)
+        const userMessageText = config.userMessage || '';
+        const resolvedUserMessage = await resolveVariables(userMessageText, context.session._id, context.session.botId);
+        messages.push({ role: 'user', content: resolvedUserMessage });
 
-        // Call OpenAI
-        const result = await openaiService.chatCompletion(
+        // ─── Resolve stop sequences ──────────────────────────────
+        let resolvedStopSequences: string[] | undefined;
+        if (config.stopSequences && config.stopSequences.length > 0) {
+            resolvedStopSequences = [];
+            for (const seq of config.stopSequences) {
+                resolvedStopSequences.push(await resolveVariables(seq, context.session._id, context.session.botId));
+            }
+        }
+
+        // ─── Build Log Context ───────────────────────────────────
+        const logContext: aiService.IAILogContext = {
+            userId: bot.userId,
+            botId: context.session.botId,
+            sessionId: context.session._id,
+            nodeId: node.nodeId,
+            nodeLabel: node.label || node.nodeType,
+            aiProviderId,
+            providerName,
+            provider: providerType,
+        };
+
+        // ─── Call AI Service ─────────────────────────────────────
+        const chatParams: aiService.IChatCompletionParams = {
+            baseUrl,
             apiKey,
-            config.model || 'gpt-3.5-turbo',
+            model: config.model || 'gpt-3.5-turbo',
             messages,
-            config.temperature || 0.7,
-            config.maxTokens || 500
-        );
+            temperature: config.temperature,
+            maxTokens: config.maxTokens,
+            topP: config.topP,
+            frequencyPenalty: config.frequencyPenalty,
+            presencePenalty: config.presencePenalty,
+            stop: resolvedStopSequences,
+            seed: config.seed,
+            responseFormat: config.responseFormat,
+            timeout: config.timeout,
+        };
 
-        // Store response
-        const responseVar = config.responseVariable || config.storeResponseIn || 'ai_response';
+        let result: aiService.IChatCompletionResult;
+
+        if (config.retryEnabled && config.retry) {
+            result = await aiService.chatCompletionWithRetry(chatParams, logContext, config.retry);
+        } else {
+            result = await aiService.chatCompletion(chatParams, logContext);
+        }
+
+        if (!result.success) {
+            throw new Error(result.error || 'AI API call failed');
+        }
+
+        // ─── Store Response ──────────────────────────────────────
+        const responseVar = config.responseVariable || 'ai_response';
         await setSessionVariable(context.session._id, responseVar, result.content, 'STRING');
 
-        // Send to user if configured
-        if (config.sendToUser) {
+        // Store entire raw response if configured
+        if (config.storeEntireResponse && config.storeResponseIn) {
+            await setSessionVariable(context.session._id, config.storeResponseIn, result.rawResponse, 'OBJECT');
+        }
+
+        // ─── Response Mapping ────────────────────────────────────
+        if (config.responseMapping && config.responseMapping.length > 0) {
+            console.log(`[AI Node] Response mapping: ${config.responseMapping.length} mappings defined`);
+            for (const mapping of config.responseMapping) {
+                if (mapping.jsonPath && mapping.variableName) {
+                    const value = getJsonPathValue(result.rawResponse, mapping.jsonPath);
+                    console.log(`[AI Node] Mapping: "${mapping.jsonPath}" → "${mapping.variableName}" = `, value);
+                    if (value !== undefined) {
+                        const varType = typeof value === 'number' ? 'NUMBER'
+                            : typeof value === 'boolean' ? 'BOOLEAN'
+                                : Array.isArray(value) ? 'ARRAY'
+                                    : typeof value === 'object' ? 'OBJECT'
+                                        : 'STRING';
+                        await setSessionVariable(context.session._id, mapping.variableName, value, varType);
+                    }
+                }
+            }
+        }
+
+        // ─── Token Usage ─────────────────────────────────────────
+        if (config.storeTokenUsage && config.tokenUsageVariable) {
+            await setSessionVariable(context.session._id, config.tokenUsageVariable, result.usage, 'OBJECT');
+        }
+
+        // ─── Send to User ────────────────────────────────────────
+        if (config.sendToUser && result.content) {
             if (context.isSimulator) {
                 context.simulatorResponses.push({ type: 'text', content: result.content });
             } else if (context.phoneNumberId && context.accessToken) {
@@ -1163,13 +1255,24 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
             });
         }
 
-        return config.successNextNodeId;
-    } catch (error) {
-        console.error(`[AI Node] Error:`, error);
+        // ─── Success routing (edge-based) ────────────────────────
+        const successEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && (e.sourceHandle === 'success' || !e.sourceHandle)
+        );
+        return config.successNextNodeId || successEdge?.targetNodeId;
 
-        // Send fallback if available
-        if (config.fallback) {
-            const resolvedFallback = await resolveVariables(config.fallback, context.session._id, context.session.botId);
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[AI Node] Error:`, errorMsg);
+
+        // Store error in variable
+        if (config.errorVariable) {
+            await setSessionVariable(context.session._id, config.errorVariable, errorMsg, 'STRING');
+        }
+
+        // Send fallback message if configured
+        if (config.fallbackMessage) {
+            const resolvedFallback = await resolveVariables(config.fallbackMessage, context.session._id, context.session.botId);
             if (context.isSimulator) {
                 context.simulatorResponses.push({ type: 'text', content: resolvedFallback });
             } else if (context.phoneNumberId && context.accessToken) {
@@ -1182,7 +1285,14 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
             }
         }
 
-        return config.failureNextNodeId;
+        // ─── Error routing (edge-based) ──────────────────────────
+        const errorEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && e.sourceHandle === 'error'
+        );
+        const fallbackEdge = context.flowData.edges.find(
+            (e) => e.sourceNodeId === node.nodeId && !e.sourceHandle
+        );
+        return config.failureNextNodeId || errorEdge?.targetNodeId || fallbackEdge?.targetNodeId;
     }
 };
 

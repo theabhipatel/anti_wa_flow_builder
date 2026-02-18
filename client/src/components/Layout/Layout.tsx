@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import {
     LayoutDashboard,
     Bot,
-    Settings,
+    Brain,
     Shield,
     LogOut,
     Sun,
@@ -41,7 +41,7 @@ export default function Layout() {
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/bots', icon: Bot, label: 'Bots' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
+        { to: '/ai-management', icon: Brain, label: 'AI Management' },
         ...(user?.role === 'ADMIN' ? [{ to: '/admin', icon: Shield, label: 'Admin' }] : []),
     ];
 

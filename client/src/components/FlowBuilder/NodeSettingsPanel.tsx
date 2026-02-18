@@ -33,6 +33,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
     const config = data.config || {};
 
     const [subflows, setSubflows] = useState<SubflowOption[]>([]);
+    const [aiProviders, setAiProviders] = useState<Array<{ _id: string; name: string; provider: string; defaultModel: string; isActive: boolean }>>([]);
 
     // Fetch subflows for GOTO_SUBFLOW node
     useEffect(() => {
@@ -56,6 +57,23 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
             fetchSubflows();
         }
     }, [nodeType, botId, flowId]);
+
+    // Fetch AI providers for AI node
+    useEffect(() => {
+        if (nodeType === 'AI') {
+            const fetchProviders = async () => {
+                try {
+                    const res = await api.get('/ai-providers');
+                    if (res.data.success) {
+                        setAiProviders(res.data.data);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch AI providers:', err);
+                }
+            };
+            fetchProviders();
+        }
+    }, [nodeType]);
 
     const updateConfig = (key: string, value: unknown) => {
         onConfigChange(node.id, { [key]: value });
@@ -205,8 +223,8 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 onClick={addButton}
                                 disabled={buttons.length >= MAX_BUTTONS}
                                 className={`mt-2 w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg border border-dashed transition-colors ${buttons.length >= MAX_BUTTONS
-                                        ? 'border-surface-200 dark:border-surface-700 text-surface-400 cursor-not-allowed opacity-50'
-                                        : 'border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20'
+                                    ? 'border-surface-200 dark:border-surface-700 text-surface-400 cursor-not-allowed opacity-50'
+                                    : 'border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20'
                                     }`}
                             >
                                 <Plus className="w-3 h-3" />
@@ -474,15 +492,15 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
                             >
                                 <span>🔗 Query Parameters</span>
-                                <span className="text-[10px] text-surface-400">{((config.queryParams as Array<{key: string; value: string}>) || []).length} params</span>
+                                <span className="text-[10px] text-surface-400">{((config.queryParams as Array<{ key: string; value: string }>) || []).length} params</span>
                             </button>
                             <div id="api-params-section" className="px-3 pb-3 space-y-2">
-                                {((config.queryParams as Array<{key: string; value: string}>) || []).map((param: {key: string; value: string}, idx: number) => (
+                                {((config.queryParams as Array<{ key: string; value: string }>) || []).map((param: { key: string; value: string }, idx: number) => (
                                     <div key={idx} className="flex items-center gap-1.5">
                                         <input
                                             value={param.key}
                                             onChange={(e) => {
-                                                const params = [...((config.queryParams as Array<{key: string; value: string}>) || [])];
+                                                const params = [...((config.queryParams as Array<{ key: string; value: string }>) || [])];
                                                 params[idx] = { ...params[idx], key: e.target.value };
                                                 updateConfig('queryParams', params);
                                             }}
@@ -492,7 +510,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                         <input
                                             value={param.value}
                                             onChange={(e) => {
-                                                const params = [...((config.queryParams as Array<{key: string; value: string}>) || [])];
+                                                const params = [...((config.queryParams as Array<{ key: string; value: string }>) || [])];
                                                 params[idx] = { ...params[idx], value: e.target.value };
                                                 updateConfig('queryParams', params);
                                             }}
@@ -501,7 +519,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                         />
                                         <button
                                             onClick={() => {
-                                                const params = ((config.queryParams as Array<{key: string; value: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                const params = ((config.queryParams as Array<{ key: string; value: string }>) || []).filter((_: unknown, i: number) => i !== idx);
                                                 updateConfig('queryParams', params);
                                             }}
                                             className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -512,7 +530,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 ))}
                                 <button
                                     onClick={() => {
-                                        const params = [...((config.queryParams as Array<{key: string; value: string}>) || []), { key: '', value: '' }];
+                                        const params = [...((config.queryParams as Array<{ key: string; value: string }>) || []), { key: '', value: '' }];
                                         updateConfig('queryParams', params);
                                     }}
                                     className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
@@ -533,15 +551,15 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
                             >
                                 <span>📋 Headers</span>
-                                <span className="text-[10px] text-surface-400">{((config.headers as Array<{key: string; value: string}>) || []).length} headers</span>
+                                <span className="text-[10px] text-surface-400">{((config.headers as Array<{ key: string; value: string }>) || []).length} headers</span>
                             </button>
                             <div id="api-headers-section" className="px-3 pb-3 space-y-2">
-                                {((config.headers as Array<{key: string; value: string}>) || []).map((header: {key: string; value: string}, idx: number) => (
+                                {((config.headers as Array<{ key: string; value: string }>) || []).map((header: { key: string; value: string }, idx: number) => (
                                     <div key={idx} className="flex items-center gap-1.5">
                                         <input
                                             value={header.key}
                                             onChange={(e) => {
-                                                const headers = [...((config.headers as Array<{key: string; value: string}>) || [])];
+                                                const headers = [...((config.headers as Array<{ key: string; value: string }>) || [])];
                                                 headers[idx] = { ...headers[idx], key: e.target.value };
                                                 updateConfig('headers', headers);
                                             }}
@@ -551,7 +569,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                         <input
                                             value={header.value}
                                             onChange={(e) => {
-                                                const headers = [...((config.headers as Array<{key: string; value: string}>) || [])];
+                                                const headers = [...((config.headers as Array<{ key: string; value: string }>) || [])];
                                                 headers[idx] = { ...headers[idx], value: e.target.value };
                                                 updateConfig('headers', headers);
                                             }}
@@ -560,7 +578,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                         />
                                         <button
                                             onClick={() => {
-                                                const headers = ((config.headers as Array<{key: string; value: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                const headers = ((config.headers as Array<{ key: string; value: string }>) || []).filter((_: unknown, i: number) => i !== idx);
                                                 updateConfig('headers', headers);
                                             }}
                                             className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -571,7 +589,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 ))}
                                 <button
                                     onClick={() => {
-                                        const headers = [...((config.headers as Array<{key: string; value: string}>) || []), { key: '', value: '' }];
+                                        const headers = [...((config.headers as Array<{ key: string; value: string }>) || []), { key: '', value: '' }];
                                         updateConfig('headers', headers);
                                     }}
                                     className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
@@ -607,8 +625,8 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                             (config.contentType as string) === 'FORM_URLENCODED'
                                                 ? '{"username": "{{user}}", "action": "login"}'
                                                 : (config.contentType as string) === 'RAW'
-                                                ? 'Raw text body...'
-                                                : '{\n  "key": "value",\n  "name": "{{user_name}}"\n}'
+                                                    ? 'Raw text body...'
+                                                    : '{\n  "key": "value",\n  "name": "{{user_name}}"\n}'
                                         }
                                     />
                                     <p className="text-xs text-surface-500 mt-1">Supports {'{{variable}}'} interpolation</p>
@@ -669,7 +687,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                             <label className="input-label">Max Retries</label>
                                             <input
                                                 type="number"
-                                                value={((config.retry as {max?: number; delay?: number})?.max) ?? 3}
+                                                value={((config.retry as { max?: number; delay?: number })?.max) ?? 3}
                                                 onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), max: Math.max(1, Math.min(10, parseInt(e.target.value) || 3)) })}
                                                 className="input-field"
                                                 min={1}
@@ -680,7 +698,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                             <label className="input-label">Retry Delay (seconds)</label>
                                             <input
                                                 type="number"
-                                                value={((config.retry as {max?: number; delay?: number})?.delay) ?? 2}
+                                                value={((config.retry as { max?: number; delay?: number })?.delay) ?? 2}
                                                 onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), delay: Math.max(1, Math.min(30, parseInt(e.target.value) || 2)) })}
                                                 className="input-field"
                                                 min={1}
@@ -744,16 +762,16 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="input-label !mb-0">Response Mapping</label>
-                                        <span className="text-[10px] text-surface-400">{((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).length} mappings</span>
+                                        <span className="text-[10px] text-surface-400">{((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).length} mappings</span>
                                     </div>
                                     <p className="text-xs text-surface-500 mb-2">Extract specific fields from the response using dot notation (e.g. <code className="bg-surface-100 dark:bg-surface-800 px-1 rounded">data.user.name</code>)</p>
                                     <div className="space-y-2">
-                                        {((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).map((mapping: {jsonPath: string; variableName: string}, idx: number) => (
+                                        {((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).map((mapping: { jsonPath: string; variableName: string }, idx: number) => (
                                             <div key={idx} className="flex items-center gap-1.5">
                                                 <input
                                                     value={mapping.jsonPath}
                                                     onChange={(e) => {
-                                                        const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || [])];
+                                                        const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
                                                         mappings[idx] = { ...mappings[idx], jsonPath: e.target.value };
                                                         updateConfig('responseMapping', mappings);
                                                     }}
@@ -764,7 +782,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                                 <input
                                                     value={mapping.variableName}
                                                     onChange={(e) => {
-                                                        const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || [])];
+                                                        const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
                                                         mappings[idx] = { ...mappings[idx], variableName: e.target.value };
                                                         updateConfig('responseMapping', mappings);
                                                     }}
@@ -773,7 +791,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                                 />
                                                 <button
                                                     onClick={() => {
-                                                        const mappings = ((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                        const mappings = ((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).filter((_: unknown, i: number) => i !== idx);
                                                         updateConfig('responseMapping', mappings);
                                                     }}
                                                     className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -785,7 +803,7 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                     </div>
                                     <button
                                         onClick={() => {
-                                            const mappings = [...((config.responseMapping as Array<{jsonPath: string; variableName: string}>) || []), { jsonPath: '', variableName: '' }];
+                                            const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []), { jsonPath: '', variableName: '' }];
                                             updateConfig('responseMapping', mappings);
                                         }}
                                         className="mt-2 w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-violet-300 dark:border-violet-600 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
@@ -839,6 +857,37 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                 {/* ======================== AI ======================== */}
                 {nodeType === 'AI' && (
                     <>
+                        {/* ─── Provider Selection ─── */}
+                        <div>
+                            <label className="input-label">AI Provider</label>
+                            <select
+                                value={(config.aiProviderId as string) || ''}
+                                onChange={(e) => updateConfig('aiProviderId', e.target.value || undefined)}
+                                className="input-field"
+                            >
+                                <option value="">— Select a provider —</option>
+                                {aiProviders.filter(p => p.isActive).map((p) => (
+                                    <option key={p._id} value={p._id}>{p.name} ({p.provider})</option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-surface-500 mt-1">
+                                Configure providers in{' '}
+                                <a href="/ai-management" className="text-purple-500 underline">AI Management</a>
+                            </p>
+                        </div>
+
+                        {/* ─── Model ─── */}
+                        <div>
+                            <label className="input-label">Model</label>
+                            <input
+                                value={(config.model as string) || ''}
+                                onChange={(e) => updateConfig('model', e.target.value)}
+                                className="input-field"
+                                placeholder="gpt-4o-mini"
+                            />
+                        </div>
+
+                        {/* ─── System Prompt ─── */}
                         <div>
                             <label className="input-label">System Prompt</label>
                             <textarea
@@ -848,7 +897,10 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 rows={4}
                                 placeholder="You are a helpful customer service agent..."
                             />
+                            <p className="text-xs text-surface-500 mt-1">Use {'{{variable}}'} for dynamic content</p>
                         </div>
+
+                        {/* ─── User Message ─── */}
                         <div>
                             <label className="input-label">User Message Template</label>
                             <textarea
@@ -859,25 +911,384 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                                 placeholder="User asked: {{last_message}}"
                             />
                         </div>
-                        <div>
-                            <label className="input-label">Max Tokens</label>
+
+                        {/* ─── Conversation History ─── */}
+                        <div className="flex items-center gap-2">
                             <input
-                                type="number"
-                                value={(config.maxTokens as number) || 500}
-                                onChange={(e) => updateConfig('maxTokens', parseInt(e.target.value))}
-                                className="input-field"
-                                min={50}
-                                max={4000}
+                                type="checkbox"
+                                id="ai-include-history"
+                                checked={!!config.includeHistory}
+                                onChange={(e) => updateConfig('includeHistory', e.target.checked)}
+                                className="w-4 h-4 rounded border-surface-300 text-purple-600 focus:ring-purple-500"
                             />
+                            <label htmlFor="ai-include-history" className="text-xs font-medium text-surface-700 dark:text-surface-300">Include Conversation History</label>
                         </div>
-                        <div>
-                            <label className="input-label">Save Response to Variable</label>
+                        {!!config.includeHistory && (
+                            <div>
+                                <label className="input-label">History Length</label>
+                                <input
+                                    type="number"
+                                    value={(config.historyLength as number) || 10}
+                                    onChange={(e) => updateConfig('historyLength', parseInt(e.target.value) || 10)}
+                                    className="input-field"
+                                    min={1}
+                                    max={50}
+                                />
+                            </div>
+                        )}
+
+                        {/* ─── Send to User ─── */}
+                        <div className="flex items-center gap-2">
                             <input
-                                value={(config.responseVariable as string) || ''}
-                                onChange={(e) => updateConfig('responseVariable', e.target.value)}
-                                className="input-field"
-                                placeholder="ai_response"
+                                type="checkbox"
+                                id="ai-send-to-user"
+                                checked={!!config.sendToUser}
+                                onChange={(e) => updateConfig('sendToUser', e.target.checked)}
+                                className="w-4 h-4 rounded border-surface-300 text-purple-600 focus:ring-purple-500"
                             />
+                            <label htmlFor="ai-send-to-user" className="text-xs font-medium text-surface-700 dark:text-surface-300">Send AI Response to User</label>
+                        </div>
+
+                        {/* ─── Advanced Parameters ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('ai-params-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>🎛️ Advanced Parameters</span>
+                                <span className="text-[10px] text-surface-400">T:{(config.temperature as number) ?? 0.7}</span>
+                            </button>
+                            <div id="ai-params-section" className="hidden px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Temperature ({(config.temperature as number) ?? 0.7})</label>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={2}
+                                        step={0.1}
+                                        value={(config.temperature as number) ?? 0.7}
+                                        onChange={(e) => updateConfig('temperature', parseFloat(e.target.value))}
+                                        className="w-full"
+                                    />
+                                    <p className="text-[10px] text-surface-500">0 = deterministic, 2 = creative</p>
+                                </div>
+                                <div>
+                                    <label className="input-label">Max Tokens</label>
+                                    <input
+                                        type="number"
+                                        value={(config.maxTokens as number) || 500}
+                                        onChange={(e) => updateConfig('maxTokens', parseInt(e.target.value))}
+                                        className="input-field"
+                                        min={50}
+                                        max={16000}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="input-label">Top P ({(config.topP as number) ?? 1})</label>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={(config.topP as number) ?? 1}
+                                        onChange={(e) => updateConfig('topP', parseFloat(e.target.value))}
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="input-label">Frequency Penalty ({(config.frequencyPenalty as number) ?? 0})</label>
+                                    <input
+                                        type="range"
+                                        min={-2}
+                                        max={2}
+                                        step={0.1}
+                                        value={(config.frequencyPenalty as number) ?? 0}
+                                        onChange={(e) => updateConfig('frequencyPenalty', parseFloat(e.target.value))}
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="input-label">Presence Penalty ({(config.presencePenalty as number) ?? 0})</label>
+                                    <input
+                                        type="range"
+                                        min={-2}
+                                        max={2}
+                                        step={0.1}
+                                        value={(config.presencePenalty as number) ?? 0}
+                                        onChange={(e) => updateConfig('presencePenalty', parseFloat(e.target.value))}
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="input-label">Response Format</label>
+                                    <select
+                                        value={(config.responseFormat as string) || 'text'}
+                                        onChange={(e) => updateConfig('responseFormat', e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="text">Text</option>
+                                        <option value="json_object">JSON Object</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Response Handling ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('ai-response-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>📥 Response Handling</span>
+                                <span className="text-[10px] text-surface-400">{(config.responseVariable as string) || 'ai_response'}</span>
+                            </button>
+                            <div id="ai-response-section" className="hidden px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Response Variable</label>
+                                    <input
+                                        value={(config.responseVariable as string) || ''}
+                                        onChange={(e) => updateConfig('responseVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="ai_response"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores the AI text response as a variable</p>
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <input
+                                            type="checkbox"
+                                            id="ai-store-entire"
+                                            checked={!!config.storeEntireResponse}
+                                            onChange={(e) => updateConfig('storeEntireResponse', e.target.checked)}
+                                            className="w-4 h-4 rounded border-surface-300 text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <label htmlFor="ai-store-entire" className="text-xs font-medium text-surface-700 dark:text-surface-300">Store Entire Raw Response</label>
+                                    </div>
+                                    {!!config.storeEntireResponse && (
+                                        <input
+                                            value={(config.storeResponseIn as string) || ''}
+                                            onChange={(e) => updateConfig('storeResponseIn', e.target.value)}
+                                            className="input-field text-xs"
+                                            placeholder="ai_raw_response"
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Response Mapping */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="input-label !mb-0">Response Mapping</label>
+                                        <span className="text-[10px] text-surface-400">{((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).length} mappings</span>
+                                    </div>
+                                    <p className="text-xs text-surface-500 mb-2">Extract fields from raw response using dot notation</p>
+                                    <div className="space-y-2">
+                                        {((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).map((mapping: { jsonPath: string; variableName: string }, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-1.5">
+                                                <input
+                                                    value={mapping.jsonPath}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], jsonPath: e.target.value };
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 font-mono text-xs"
+                                                    placeholder="usage.total_tokens"
+                                                />
+                                                <span className="text-xs text-surface-400">→</span>
+                                                <input
+                                                    value={mapping.variableName}
+                                                    onChange={(e) => {
+                                                        const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || [])];
+                                                        mappings[idx] = { ...mappings[idx], variableName: e.target.value };
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="input-field flex-1 !py-1.5 text-xs"
+                                                    placeholder="total_tokens"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const mappings = ((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []).filter((_: unknown, i: number) => i !== idx);
+                                                        updateConfig('responseMapping', mappings);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const mappings = [...((config.responseMapping as Array<{ jsonPath: string; variableName: string }>) || []), { jsonPath: '', variableName: '' }];
+                                            updateConfig('responseMapping', mappings);
+                                        }}
+                                        className="mt-2 w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Mapping
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Token Usage ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('ai-token-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>📊 Token Usage</span>
+                                <span className="text-[10px] text-surface-400">{config.storeTokenUsage ? 'Tracking' : 'Off'}</span>
+                            </button>
+                            <div id="ai-token-section" className="hidden px-3 pb-3 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="ai-store-tokens"
+                                        checked={!!config.storeTokenUsage}
+                                        onChange={(e) => updateConfig('storeTokenUsage', e.target.checked)}
+                                        className="w-4 h-4 rounded border-surface-300 text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <label htmlFor="ai-store-tokens" className="text-xs font-medium text-surface-700 dark:text-surface-300">Store Token Usage in Variable</label>
+                                </div>
+                                {!!config.storeTokenUsage && (
+                                    <div>
+                                        <label className="input-label">Token Usage Variable</label>
+                                        <input
+                                            value={(config.tokenUsageVariable as string) || ''}
+                                            onChange={(e) => updateConfig('tokenUsageVariable', e.target.value)}
+                                            className="input-field text-xs"
+                                            placeholder="ai_tokens"
+                                        />
+                                        <p className="text-xs text-surface-500 mt-1">Stores {'{promptTokens, completionTokens, totalTokens}'}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ─── Error Handling ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('ai-error-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>⚠️ Error Handling</span>
+                                <span className="text-[10px] text-surface-400">{(config.errorVariable as string) ? 'Configured' : 'Optional'}</span>
+                            </button>
+                            <div id="ai-error-section" className="hidden px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Error Variable</label>
+                                    <input
+                                        value={(config.errorVariable as string) || ''}
+                                        onChange={(e) => updateConfig('errorVariable', e.target.value)}
+                                        className="input-field text-xs"
+                                        placeholder="ai_error"
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Stores error message on failure</p>
+                                </div>
+                                <div>
+                                    <label className="input-label">Fallback Message</label>
+                                    <textarea
+                                        value={(config.fallbackMessage as string) || ''}
+                                        onChange={(e) => updateConfig('fallbackMessage', e.target.value)}
+                                        className="input-field"
+                                        rows={2}
+                                        placeholder="Sorry, I couldn't process that. Please try again."
+                                    />
+                                    <p className="text-xs text-surface-500 mt-1">Sent to user when AI call fails</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ─── Timeout & Retry ─── */}
+                        <div className="border border-surface-200 dark:border-surface-700 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const el = document.getElementById('ai-timeout-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors"
+                            >
+                                <span>⏱️ Timeout & Retry</span>
+                                <span className="text-[10px] text-surface-400">{(config.timeout as number) || 30}s / Retry: {config.retryEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                            <div id="ai-timeout-section" className="hidden px-3 pb-3 space-y-3">
+                                <div>
+                                    <label className="input-label">Timeout (seconds)</label>
+                                    <input
+                                        type="number"
+                                        value={(config.timeout as number) ?? 30}
+                                        onChange={(e) => updateConfig('timeout', Math.max(1, Math.min(120, parseInt(e.target.value) || 30)))}
+                                        className="input-field"
+                                        min={1}
+                                        max={120}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="ai-retry-toggle"
+                                        checked={!!config.retryEnabled}
+                                        onChange={(e) => updateConfig('retryEnabled', e.target.checked)}
+                                        className="w-4 h-4 rounded border-surface-300 text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <label htmlFor="ai-retry-toggle" className="text-xs font-medium text-surface-700 dark:text-surface-300">Enable Retry on Failure</label>
+                                </div>
+                                {!!config.retryEnabled && (
+                                    <>
+                                        <div>
+                                            <label className="input-label">Max Retries</label>
+                                            <input
+                                                type="number"
+                                                value={((config.retry as { max?: number; delay?: number })?.max) ?? 3}
+                                                onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), max: Math.max(1, Math.min(10, parseInt(e.target.value) || 3)) })}
+                                                className="input-field"
+                                                min={1}
+                                                max={10}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="input-label">Retry Delay (seconds)</label>
+                                            <input
+                                                type="number"
+                                                value={((config.retry as { max?: number; delay?: number })?.delay) ?? 2}
+                                                onChange={(e) => updateConfig('retry', { ...(config.retry as object || {}), delay: Math.max(1, Math.min(30, parseInt(e.target.value) || 2)) })}
+                                                className="input-field"
+                                                min={1}
+                                                max={30}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ─── Tips ─── */}
+                        <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-1">💡 Tips</p>
+                            <ul className="text-xs text-purple-600 dark:text-purple-400 space-y-1 list-disc list-inside">
+                                <li>Use <code className="bg-purple-100 dark:bg-purple-900/30 px-1 rounded">{'{{variable}}'}</code> in prompts for dynamic content</li>
+                                <li>Success/Error edges let you branch on AI API results</li>
+                                <li>View logs and token usage in <strong>AI Management</strong></li>
+                                <li>Lower temperature = more consistent, higher = more creative</li>
+                            </ul>
                         </div>
                     </>
                 )}

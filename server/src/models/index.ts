@@ -1,5 +1,6 @@
 export { default as User } from './User';
-export { default as OpenAIAccount } from './OpenAIAccount';
+export { default as AIProvider } from './AIProvider';
+export { default as AIApiLog } from './AIApiLog';
 export { default as Bot } from './Bot';
 export { default as WhatsAppAccount } from './WhatsAppAccount';
 export { default as Flow } from './Flow';

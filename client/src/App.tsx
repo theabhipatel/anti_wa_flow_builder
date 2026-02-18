@@ -7,7 +7,7 @@ import BotListPage from './pages/BotListPage';
 import BotSettingsPage from './pages/BotSettingsPage';
 import FlowListPage from './pages/FlowListPage';
 import FlowBuilderPage from './pages/FlowBuilderPage';
-import SettingsPage from './pages/SettingsPage';
+import AIManagementPage from './pages/AIManagementPage';
 import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout/Layout';
 
@@ -32,7 +32,7 @@ function App() {
                 <Route path="bots" element={<BotListPage />} />
                 <Route path="bots/:botId/settings" element={<BotSettingsPage />} />
                 <Route path="bots/:botId/flows" element={<FlowListPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route path="ai-management" element={<AIManagementPage />} />
                 <Route path="admin" element={<AdminPage />} />
             </Route>
             <Route
