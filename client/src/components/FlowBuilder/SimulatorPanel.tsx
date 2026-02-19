@@ -199,14 +199,37 @@ export default function SimulatorPanel({ botId, flowId, onClose }: Props) {
             });
 
             if (res.data.success && res.data.data.responses) {
-                const botMessages: IMessage[] = res.data.data.responses.map((r: { type: string; content: string; buttons?: Array<{ id: string; label: string }> }, i: number) => ({
-                    id: `bot_${Date.now()}_${i}`,
-                    role: 'bot' as const,
-                    text: r.content,
-                    buttons: r.buttons,
-                    timestamp: new Date(),
-                }));
-                setMessages((prev) => [...prev, ...botMessages]);
+                const responses = res.data.data.responses as Array<{ type: string; content: string; buttons?: Array<{ id: string; label: string }> }>;
+
+                // If only 1 response, add immediately
+                if (responses.length <= 1) {
+                    const botMessages: IMessage[] = responses.map((r, i) => ({
+                        id: `bot_${Date.now()}_${i}`,
+                        role: 'bot' as const,
+                        text: r.content,
+                        buttons: r.buttons,
+                        timestamp: new Date(),
+                    }));
+                    setMessages((prev) => [...prev, ...botMessages]);
+                } else {
+                    // Multiple responses (e.g., from loops) — stagger them
+                    const STAGGER_DELAY = 400; // ms between each message
+                    for (let i = 0; i < responses.length; i++) {
+                        const r = responses[i];
+                        await new Promise<void>((resolve) => {
+                            setTimeout(() => {
+                                setMessages((prev) => [...prev, {
+                                    id: `bot_${Date.now()}_${i}`,
+                                    role: 'bot' as const,
+                                    text: r.content,
+                                    buttons: r.buttons,
+                                    timestamp: new Date(),
+                                }]);
+                                resolve();
+                            }, i === 0 ? 0 : STAGGER_DELAY);
+                        });
+                    }
+                }
             }
 
             // Check if the session is now paused with a delay (waiting)

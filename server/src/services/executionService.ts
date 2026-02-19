@@ -1312,8 +1312,8 @@ const executeLoopNode = async (context: IExecutionContext, node: IFlowNode): Pro
         exitNextNodeId: config.exitNextNodeId,
     }));
 
-    // Default loopType for backward compatibility — old nodes used COUNT_BASED behavior
-    const loopType = config.loopType || 'COUNT_BASED';
+    // Default loopType — UI defaults to FOR_EACH, so server must match
+    const loopType = config.loopType || 'FOR_EACH';
 
     // ── Internal iteration variable ──
     const iterationVar = config.currentIterationVariable || `__loop_${node.nodeId}_iter`;

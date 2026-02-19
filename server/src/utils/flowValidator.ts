@@ -100,7 +100,7 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
             }
             case 'LOOP': {
                 const config = node.config as { loopType?: string; arrayVariable?: string; iterationCount?: number; continueCondition?: string; maxIterations?: number };
-                const loopType = config.loopType || 'COUNT_BASED';
+                const loopType = config.loopType || 'FOR_EACH';
                 if (loopType === 'FOR_EACH' && (!config.arrayVariable || config.arrayVariable.trim() === '')) {
                     errors.push({ nodeId: node.nodeId, field: 'arrayVariable', message: 'Array variable is required for For Each loops' });
                 }

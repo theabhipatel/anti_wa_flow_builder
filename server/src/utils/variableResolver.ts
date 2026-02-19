@@ -17,22 +17,30 @@ export const resolveVariables = async (
 
     if (!matches) return template;
 
-    // Load all session and bot variables
+    // Load all session and bot variables — use .lean() for plain JS objects
     const [sessionVars, botVars] = await Promise.all([
-        SessionVariable.find({ sessionId }),
-        BotVariable.find({ botId }),
+        SessionVariable.find({ sessionId }).lean(),
+        BotVariable.find({ botId }).lean(),
     ]);
 
     const variableMap: Record<string, unknown> = {};
 
     // Bot variables first (lower priority)
     for (const bv of botVars) {
-        variableMap[bv.variableName] = bv.variableValue;
+        variableMap[bv.variableName] = parseStoredValue(bv.variableValue);
     }
 
     // Session variables override (higher priority)
     for (const sv of sessionVars) {
-        variableMap[sv.variableName] = sv.variableValue;
+        variableMap[sv.variableName] = parseStoredValue(sv.variableValue);
+    }
+
+    // DEBUG: Log variable map keys and item variable specifically
+    console.log(`[Resolver] Resolving template: "${template}"`);
+    console.log(`[Resolver] Variable map keys:`, Object.keys(variableMap));
+    if (variableMap['item'] !== undefined) {
+        console.log(`[Resolver] "item" value type: ${typeof variableMap['item']}, isArray: ${Array.isArray(variableMap['item'])}`);
+        console.log(`[Resolver] "item" value:`, JSON.stringify(variableMap['item']).substring(0, 200));
     }
 
     let resolved = template;
@@ -49,9 +57,10 @@ export const resolveVariables = async (
         }
 
         const value = resolveNestedValue(variableMap, varPath);
+        console.log(`[Resolver] {{${varPath}}} → ${value !== undefined && value !== null ? `"${String(value).substring(0, 100)}"` : '(undefined)'}`);
 
         if (value !== undefined && value !== null) {
-            resolved = resolved.replace(match, String(value));
+            resolved = resolved.replace(match, stringifyForTemplate(value));
         } else if (fallback !== undefined) {
             resolved = resolved.replace(match, fallback);
         } else {
@@ -61,6 +70,34 @@ export const resolveVariables = async (
     }
 
     return resolved;
+};
+
+/**
+ * Parse a stored value — if it's a JSON string, parse it into an object/array
+ */
+const parseStoredValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+            try {
+                return JSON.parse(trimmed);
+            } catch {
+                return value;
+            }
+        }
+    }
+    return value;
+};
+
+/**
+ * Convert a value to string for template replacement
+ */
+const stringifyForTemplate = (value: unknown): string => {
+    if (typeof value === 'object' && value !== null) {
+        return JSON.stringify(value);
+    }
+    return String(value);
 };
 
 /**
@@ -92,18 +129,18 @@ export const getVariableMap = async (
     botId: Types.ObjectId
 ): Promise<Record<string, unknown>> => {
     const [sessionVars, botVars] = await Promise.all([
-        SessionVariable.find({ sessionId }),
-        BotVariable.find({ botId }),
+        SessionVariable.find({ sessionId }).lean(),
+        BotVariable.find({ botId }).lean(),
     ]);
 
     const map: Record<string, unknown> = {};
 
     for (const bv of botVars) {
-        map[bv.variableName] = bv.variableValue;
+        map[bv.variableName] = parseStoredValue(bv.variableValue);
     }
 
     for (const sv of sessionVars) {
-        map[sv.variableName] = sv.variableValue;
+        map[sv.variableName] = parseStoredValue(sv.variableValue);
     }
 
     return map;
