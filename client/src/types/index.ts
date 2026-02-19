@@ -99,8 +99,8 @@ export interface IFlowEdge {
 
 export interface IValidationResult {
     isValid: boolean;
-    errors: Array<{ nodeId?: string; field?: string; message: string }>;
-    warnings: Array<{ nodeId?: string; message: string }>;
+    errors: Array<{ nodeId?: string; nodeName?: string; nodeType?: string; flowName?: string; field?: string; message: string }>;
+    warnings: Array<{ nodeId?: string; nodeName?: string; nodeType?: string; flowName?: string; message: string }>;
 }
 
 export interface ISimulatorResponse {

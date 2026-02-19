@@ -513,12 +513,18 @@ export interface IValidationResult {
 
 export interface IValidationError {
     nodeId?: string;
+    nodeName?: string;
+    nodeType?: string;
+    flowName?: string;
     field?: string;
     message: string;
 }
 
 export interface IValidationWarning {
     nodeId?: string;
+    nodeName?: string;
+    nodeType?: string;
+    flowName?: string;
     field?: string;
     message: string;
 }

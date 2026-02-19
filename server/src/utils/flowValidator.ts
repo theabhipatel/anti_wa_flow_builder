@@ -1,23 +1,57 @@
 import { IFlowData, IValidationResult, IValidationError, IValidationWarning } from '../types';
 
-export const validateFlow = (flowData: IFlowData): IValidationResult => {
+export const validateFlow = (flowData: IFlowData, flowName?: string): IValidationResult => {
     const errors: IValidationError[] = [];
     const warnings: IValidationWarning[] = [];
 
     const { nodes, edges } = flowData;
 
+    // Helper: look up node label and type for a given nodeId
+    const nodeInfo = (nodeId: string): { nodeName?: string; nodeType?: string } => {
+        const node = nodes.find((n) => n.nodeId === nodeId);
+        return {
+            nodeName: node?.label || node?.nodeId,
+            nodeType: node?.nodeType,
+        };
+    };
+
+    // Helper: build an error with full context
+    const makeError = (nodeId: string | undefined, field: string | undefined, message: string): IValidationError => {
+        const info = nodeId ? nodeInfo(nodeId) : {};
+        return {
+            nodeId,
+            nodeName: info.nodeName,
+            nodeType: info.nodeType,
+            flowName,
+            field,
+            message,
+        };
+    };
+
+    // Helper: build a warning with full context
+    const makeWarning = (nodeId: string | undefined, message: string): IValidationWarning => {
+        const info = nodeId ? nodeInfo(nodeId) : {};
+        return {
+            nodeId,
+            nodeName: info.nodeName,
+            nodeType: info.nodeType,
+            flowName,
+            message,
+        };
+    };
+
     // 1. Exactly one Start node
     const startNodes = nodes.filter((n) => n.nodeType === 'START');
     if (startNodes.length === 0) {
-        errors.push({ message: 'Flow must have exactly one Start node' });
+        errors.push(makeError(undefined, undefined, 'Flow must have exactly one Start node'));
     } else if (startNodes.length > 1) {
-        errors.push({ message: `Flow has ${startNodes.length} Start nodes, only one is allowed` });
+        errors.push(makeError(undefined, undefined, `Flow has ${startNodes.length} Start nodes, only one is allowed`));
     }
 
     // 2. At least one End node (warning only)
     const endNodes = nodes.filter((n) => n.nodeType === 'END');
     if (endNodes.length === 0) {
-        warnings.push({ message: 'Flow has no End node. Flows should terminate properly.' });
+        warnings.push(makeWarning(undefined, 'Flow has no End node. Flows should terminate properly.'));
     }
 
     // 3. Check all nodes have required fields
@@ -26,28 +60,28 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
             case 'MESSAGE': {
                 const config = node.config as { text?: string };
                 if (!config.text || config.text.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'text', message: 'Message content is required' });
+                    errors.push(makeError(node.nodeId, 'text', 'Message content is required'));
                 }
                 break;
             }
             case 'BUTTON': {
                 const config = node.config as { messageText?: string; buttons?: Array<{ buttonId: string; label: string }> };
                 if (!config.messageText || config.messageText.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'messageText', message: 'Button message text is required' });
+                    errors.push(makeError(node.nodeId, 'messageText', 'Button message text is required'));
                 } else if (config.messageText.length > 1024) {
-                    errors.push({ nodeId: node.nodeId, field: 'messageText', message: 'Message text must not exceed 1024 characters' });
+                    errors.push(makeError(node.nodeId, 'messageText', 'Message text must not exceed 1024 characters'));
                 }
                 if (!config.buttons || config.buttons.length === 0) {
-                    errors.push({ nodeId: node.nodeId, field: 'buttons', message: 'At least one button is required' });
+                    errors.push(makeError(node.nodeId, 'buttons', 'At least one button is required'));
                 } else {
                     if (config.buttons.length > 3) {
-                        errors.push({ nodeId: node.nodeId, field: 'buttons', message: 'Maximum 3 buttons allowed' });
+                        errors.push(makeError(node.nodeId, 'buttons', 'Maximum 3 buttons allowed'));
                     }
                     config.buttons.forEach((btn, idx) => {
                         if (!btn.label || btn.label.trim() === '') {
-                            errors.push({ nodeId: node.nodeId, field: `buttons[${idx}]`, message: `Button ${idx + 1}: label is required` });
+                            errors.push(makeError(node.nodeId, `buttons[${idx}]`, `Button ${idx + 1}: label is required`));
                         } else if (btn.label.length > 20) {
-                            errors.push({ nodeId: node.nodeId, field: `buttons[${idx}]`, message: `Button ${idx + 1}: label must not exceed 20 characters` });
+                            errors.push(makeError(node.nodeId, `buttons[${idx}]`, `Button ${idx + 1}: label must not exceed 20 characters`));
                         }
                     });
                 }
@@ -56,34 +90,34 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
             case 'INPUT': {
                 const config = node.config as { promptText?: string; variableName?: string };
                 if (!config.promptText || config.promptText.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'promptText', message: 'Prompt message is required' });
+                    errors.push(makeError(node.nodeId, 'promptText', 'Prompt message is required'));
                 }
                 if (!config.variableName || config.variableName.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'variableName', message: 'Variable name is required' });
+                    errors.push(makeError(node.nodeId, 'variableName', 'Variable name is required'));
                 }
                 break;
             }
             case 'CONDITION': {
                 const config = node.config as { leftOperand?: string; operator?: string; rightOperand?: string };
                 if (!config.leftOperand || config.leftOperand.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'leftOperand', message: 'Left operand is required' });
+                    errors.push(makeError(node.nodeId, 'leftOperand', 'Left operand is required'));
                 }
                 if (!config.operator) {
-                    errors.push({ nodeId: node.nodeId, field: 'operator', message: 'Operator is required' });
+                    errors.push(makeError(node.nodeId, 'operator', 'Operator is required'));
                 }
                 break;
             }
             case 'DELAY': {
                 const config = node.config as { delaySeconds?: number };
                 if (!config.delaySeconds || config.delaySeconds <= 0) {
-                    errors.push({ nodeId: node.nodeId, field: 'delaySeconds', message: 'Delay duration must be greater than 0' });
+                    errors.push(makeError(node.nodeId, 'delaySeconds', 'Delay duration must be greater than 0'));
                 }
                 break;
             }
             case 'API': {
                 const config = node.config as { url?: string; method?: string };
                 if (!config.url || config.url.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'url', message: 'API URL is required' });
+                    errors.push(makeError(node.nodeId, 'url', 'API URL is required'));
                 }
                 // method defaults to GET if not set — no validation needed
                 break;
@@ -91,10 +125,10 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
             case 'AI': {
                 const config = node.config as { userMessage?: string; responseVariable?: string };
                 if (!config.userMessage || config.userMessage.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'userMessage', message: 'User message template is required' });
+                    errors.push(makeError(node.nodeId, 'userMessage', 'User message template is required'));
                 }
                 if (!config.responseVariable || config.responseVariable.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'responseVariable', message: 'Response variable name is required' });
+                    errors.push(makeError(node.nodeId, 'responseVariable', 'Response variable name is required'));
                 }
                 break;
             }
@@ -102,20 +136,20 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
                 const config = node.config as { loopType?: string; arrayVariable?: string; iterationCount?: number; continueCondition?: string; maxIterations?: number };
                 const loopType = config.loopType || 'FOR_EACH';
                 if (loopType === 'FOR_EACH' && (!config.arrayVariable || config.arrayVariable.trim() === '')) {
-                    errors.push({ nodeId: node.nodeId, field: 'arrayVariable', message: 'Array variable is required for For Each loops' });
+                    errors.push(makeError(node.nodeId, 'arrayVariable', 'Array variable is required for For Each loops'));
                 }
                 if (loopType === 'COUNT_BASED' && (!config.iterationCount || config.iterationCount <= 0) && (!config.maxIterations || config.maxIterations <= 0)) {
-                    errors.push({ nodeId: node.nodeId, field: 'iterationCount', message: 'Iteration count must be set for Count Based loops' });
+                    errors.push(makeError(node.nodeId, 'iterationCount', 'Iteration count must be set for Count Based loops'));
                 }
                 if (loopType === 'CONDITION_BASED' && (!config.continueCondition || config.continueCondition.trim() === '')) {
-                    errors.push({ nodeId: node.nodeId, field: 'continueCondition', message: 'Continue condition is required for Condition Based loops' });
+                    errors.push(makeError(node.nodeId, 'continueCondition', 'Continue condition is required for Condition Based loops'));
                 }
                 break;
             }
             case 'GOTO_SUBFLOW': {
                 const config = node.config as { targetFlowId?: string };
                 if (!config.targetFlowId || config.targetFlowId.trim() === '') {
-                    errors.push({ nodeId: node.nodeId, field: 'targetFlowId', message: 'Target subflow must be selected' });
+                    errors.push(makeError(node.nodeId, 'targetFlowId', 'Target subflow must be selected'));
                 }
                 break;
             }
@@ -187,10 +221,7 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
 
         const orphanNodes = nodes.filter((n) => !reachable.has(n.nodeId));
         for (const orphan of orphanNodes) {
-            warnings.push({
-                nodeId: orphan.nodeId,
-                message: `Node "${orphan.label || orphan.nodeId}" is not reachable from Start node`,
-            });
+            warnings.push(makeWarning(orphan.nodeId, `Node "${orphan.label || orphan.nodeId}" is not reachable from Start node`));
         }
     }
 
@@ -198,10 +229,10 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
     const nodeIds = new Set(nodes.map((n) => n.nodeId));
     for (const edge of edges) {
         if (!nodeIds.has(edge.sourceNodeId)) {
-            errors.push({ message: `Edge ${edge.edgeId} references non-existent source node ${edge.sourceNodeId}` });
+            errors.push(makeError(undefined, undefined, `Edge ${edge.edgeId} references non-existent source node ${edge.sourceNodeId}`));
         }
         if (!nodeIds.has(edge.targetNodeId)) {
-            errors.push({ message: `Edge ${edge.edgeId} references non-existent target node ${edge.targetNodeId}` });
+            errors.push(makeError(undefined, undefined, `Edge ${edge.edgeId} references non-existent target node ${edge.targetNodeId}`));
         }
     }
 
@@ -209,7 +240,7 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
     for (const endNode of endNodes) {
         const outgoing = edges.filter((e) => e.sourceNodeId === endNode.nodeId);
         if (outgoing.length > 0) {
-            errors.push({ nodeId: endNode.nodeId, message: 'End node cannot have outgoing edges' });
+            errors.push(makeError(endNode.nodeId, undefined, 'End node cannot have outgoing edges'));
         }
     }
 
@@ -219,3 +250,4 @@ export const validateFlow = (flowData: IFlowData): IValidationResult => {
         warnings,
     };
 };
+

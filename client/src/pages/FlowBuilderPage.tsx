@@ -43,6 +43,8 @@ import {
     AlertTriangle,
     MessageSquare,
     LayoutGrid,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 
 function FlowBuilderInner() {
@@ -59,6 +61,7 @@ function FlowBuilderInner() {
     const [validation, setValidation] = useState<IValidationResult | null>(null);
     const [showSimulator, setShowSimulator] = useState(false);
     const [flowName, setFlowName] = useState('');
+    const [errorsExpanded, setErrorsExpanded] = useState(false);
 
     // Confirm modal state
     const [confirmModal, setConfirmModal] = useState<{
@@ -394,8 +397,12 @@ function FlowBuilderInner() {
                         // Deploy returns data as array of {flowName, errors} — flatten into IValidationResult
                         const deployErrors = res.data.data;
                         if (Array.isArray(deployErrors)) {
-                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string }> }) =>
-                                (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
+                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string; nodeName?: string; nodeType?: string; flowName?: string }> }) =>
+                                (f.errors || []).map((e) => ({
+                                    ...e,
+                                    flowName: e.flowName || f.flowName,
+                                    message: e.message || `Validation error in ${f.flowName}`,
+                                }))
                             );
                             setValidation({ isValid: false, errors: allErrors, warnings: [] });
                             toast.error(`Deploy failed — ${allErrors.length} validation error${allErrors.length !== 1 ? 's' : ''}`);
@@ -409,8 +416,12 @@ function FlowBuilderInner() {
                     if (axiosErr.response?.data?.data) {
                         const deployErrors = axiosErr.response.data.data;
                         if (Array.isArray(deployErrors)) {
-                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string }> }) =>
-                                (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
+                            const allErrors = deployErrors.flatMap((f: { flowName: string; errors: Array<{ message?: string; field?: string; nodeId?: string; nodeName?: string; nodeType?: string; flowName?: string }> }) =>
+                                (f.errors || []).map((e) => ({
+                                    ...e,
+                                    flowName: e.flowName || f.flowName,
+                                    message: e.message || `Validation error in ${f.flowName}`,
+                                }))
                             );
                             setValidation({ isValid: false, errors: allErrors, warnings: [] });
                             toast.error(`Deploy failed — ${allErrors.length} validation error${allErrors.length !== 1 ? 's' : ''}`);
@@ -498,15 +509,67 @@ function FlowBuilderInner() {
             </div>
 
             {/* Validation banner */}
-            {validation && !validation.isValid && (
-                <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <span className="text-sm text-red-600 dark:text-red-400">
-                        {(validation.errors?.length || 0)} error{(validation.errors?.length || 0) !== 1 ? 's' : ''}: {validation.errors?.[0]?.message || 'Validation failed'}
-                    </span>
-                    <button onClick={() => setValidation(null)} className="ml-auto text-xs text-red-500 hover:text-red-700">Dismiss</button>
-                </div>
-            )}
+            {validation && !validation.isValid && (() => {
+                const errors = validation.errors || [];
+                const errorCount = errors.length;
+                const hasMultipleErrors = errorCount > 1;
+
+                // Helper to format a single error line with context
+                const formatError = (err: typeof errors[0], idx: number) => {
+                    const parts: string[] = [];
+                    if (err.flowName) parts.push(err.flowName);
+                    if (err.nodeName) {
+                        const nodeLabel = err.nodeType ? `${err.nodeName} (${err.nodeType})` : err.nodeName;
+                        parts.push(nodeLabel);
+                    }
+                    const prefix = parts.length > 0 ? parts.join(' → ') + ': ' : '';
+                    return (
+                        <div key={idx} className="flex items-start gap-2 py-1">
+                            <span className="text-red-400 mt-0.5 text-xs">●</span>
+                            <span className="text-sm text-red-600 dark:text-red-400">
+                                {prefix && <span className="font-medium">{prefix}</span>}
+                                {err.message}
+                                {err.field && <span className="text-red-400 dark:text-red-500 ml-1">(field: {err.field})</span>}
+                            </span>
+                        </div>
+                    );
+                };
+
+                return (
+                    <div className="relative bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+                        {/* Header row */}
+                        <div className="px-4 py-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            {hasMultipleErrors ? (
+                                <button
+                                    onClick={() => setErrorsExpanded(!errorsExpanded)}
+                                    className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 font-medium hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                                >
+                                    {errorCount} errors found — click to {errorsExpanded ? 'collapse' : 'expand'}
+                                    {errorsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+                            ) : (
+                                <span className="text-sm text-red-600 dark:text-red-400">
+                                    {formatError(errors[0], 0)}
+                                </span>
+                            )}
+                            <button
+                                onClick={() => { setValidation(null); setErrorsExpanded(false); }}
+                                className="ml-auto text-xs text-red-500 hover:text-red-700 flex-shrink-0"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+
+                        {/* Expanded error list — overlay on top of canvas */}
+                        {hasMultipleErrors && errorsExpanded && (
+                            <div className="absolute left-0 right-0 top-full z-50 bg-red-50 dark:bg-red-900/95 border border-red-200 dark:border-red-800 rounded-b-lg shadow-lg max-h-64 overflow-y-auto px-4 pb-3 pt-2">
+                                {errors.map((err, idx) => formatError(err, idx))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* Main content */}
             <div className="flex-1 flex overflow-hidden">

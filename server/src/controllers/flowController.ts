@@ -253,6 +253,12 @@ export const validateFlowEndpoint = async (req: Request, res: Response, next: Ne
             return;
         }
 
+        const flow = await Flow.findOne({ _id: flowId, botId });
+        if (!flow) {
+            res.status(404).json({ success: false, error: 'Flow not found' });
+            return;
+        }
+
         const draftVersion = await FlowVersion.findOne({ flowId, isDraft: true })
             .sort({ versionNumber: -1 });
 
@@ -261,7 +267,7 @@ export const validateFlowEndpoint = async (req: Request, res: Response, next: Ne
             return;
         }
 
-        const validationResult = validateFlow(draftVersion.flowData);
+        const validationResult = validateFlow(draftVersion.flowData, flow.name);
 
         res.json({ success: true, data: validationResult });
     } catch (error) {
@@ -295,7 +301,7 @@ export const deployFlow = async (req: Request, res: Response, next: NextFunction
             }
 
             // Validate each flow
-            const validationResult = validateFlow(draftVersion.flowData);
+            const validationResult = validateFlow(draftVersion.flowData, flow.name);
             if (!validationResult.isValid) {
                 allErrors.push({ flowName: flow.name, errors: validationResult.errors });
                 continue;
