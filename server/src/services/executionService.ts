@@ -6,6 +6,7 @@ import {
     ISession,
     IMessageNodeConfig,
     IButtonNodeConfig,
+    IListNodeConfig,
     IInputNodeConfig,
     IConditionNodeConfig,
     IDelayNodeConfig,
@@ -268,6 +269,9 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
             case 'BUTTON':
                 nextNodeId = await executeButtonNode(context, node);
                 break;
+            case 'LIST':
+                nextNodeId = await executeListNode(context, node);
+                break;
             case 'INPUT':
                 nextNodeId = await executeInputNode(context, node);
                 break;
@@ -341,7 +345,7 @@ const executeNode = async (context: IExecutionContext): Promise<void> => {
 };
 
 const isPausingNode = (nodeType: string): boolean => {
-    return ['BUTTON', 'INPUT'].includes(nodeType);
+    return ['BUTTON', 'LIST', 'INPUT'].includes(nodeType);
 };
 
 // ============================================================
@@ -482,6 +486,106 @@ const executeButtonNode = async (context: IExecutionContext, node: IFlowNode): P
         }
 
         return config.fallback.nextNodeId || node.nodeId; // Re-send or loop
+    }
+
+    return undefined;
+};
+
+const executeListNode = async (context: IExecutionContext, node: IFlowNode): Promise<string | undefined> => {
+    const config = node.config as IListNodeConfig;
+
+    // If we are at this node for the first time (no incoming button/list click), send the list message
+    if (!context.incomingButtonId) {
+        const resolvedText = config.messageText
+            ? await resolveVariables(config.messageText, context.session._id, context.session.botId)
+            : 'Please select an option:';
+
+        const buttonText = config.buttonText || 'Select';
+        const sections = config.sections || [];
+
+        // Flatten all items for the simulator display
+        const allItems = sections.flatMap((s) => (s.items || []));
+
+        if (context.isSimulator) {
+            // In simulator, show as buttons (since simulator doesn't have a native list widget)
+            context.simulatorResponses.push({
+                type: 'button',
+                content: resolvedText,
+                buttons: allItems.map((item) => ({
+                    id: item.itemId,
+                    label: item.title + (item.description ? ` — ${item.description}` : ''),
+                })),
+            });
+        } else if (context.phoneNumberId && context.accessToken) {
+            await whatsappService.sendListMessage(
+                context.phoneNumberId,
+                context.accessToken,
+                context.session.userPhoneNumber,
+                resolvedText,
+                buttonText,
+                sections
+            );
+        }
+
+        // Log bot message
+        await Message.create({
+            sessionId: context.session._id,
+            sender: 'BOT',
+            messageType: 'LIST',
+            messageContent: resolvedText,
+            nodeId: node.nodeId,
+            sentAt: new Date(),
+        });
+
+        // Pause and wait for user selection — session stays at this node
+        await sessionService.updateSessionState(context.session._id, {
+            currentNodeId: node.nodeId,
+            status: 'PAUSED',
+        });
+
+        return undefined; // Pause execution
+    }
+
+    // We have a list item selection — find the next node via edges using sourceHandle
+    const matchedEdge = context.flowData.edges.find(
+        (e) => e.sourceNodeId === node.nodeId && e.sourceHandle === context.incomingButtonId
+    );
+
+    if (matchedEdge) {
+        await sessionService.updateSessionState(context.session._id, { status: 'ACTIVE' });
+        context.incomingButtonId = undefined; // Consume the selection
+        context.incomingMessage = undefined;
+        return matchedEdge.targetNodeId;
+    }
+
+    // Fallback: try matching by item config (nextNodeId in item)
+    const allItems = (config.sections || []).flatMap((s) => s.items || []);
+    const clickedItem = allItems.find((item) => item.itemId === context.incomingButtonId);
+    if (clickedItem) {
+        await sessionService.updateSessionState(context.session._id, { status: 'ACTIVE' });
+        context.incomingButtonId = undefined;
+        context.incomingMessage = undefined;
+        return clickedItem.nextNodeId;
+    }
+
+    // Text response when list expected → fallback
+    if (context.incomingMessage && config.fallback) {
+        const fallbackMsg = config.fallback.message
+            ? await resolveVariables(config.fallback.message, context.session._id, context.session.botId)
+            : 'Please select an option from the list.';
+
+        if (context.isSimulator) {
+            context.simulatorResponses.push({ type: 'text', content: fallbackMsg });
+        } else if (context.phoneNumberId && context.accessToken) {
+            await whatsappService.sendTextMessage(
+                context.phoneNumberId,
+                context.accessToken,
+                context.session.userPhoneNumber,
+                fallbackMsg
+            );
+        }
+
+        return config.fallback.nextNodeId || node.nodeId;
     }
 
     return undefined;

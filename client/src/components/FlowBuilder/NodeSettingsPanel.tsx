@@ -119,6 +119,15 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
         }
     }, [nodeType]);
 
+    // Auto-add a default section/item if LIST node has no sections
+    useEffect(() => {
+        if (nodeType === 'LIST' && (!config.sections || (config.sections as Array<{ items: unknown[] }>).length === 0)) {
+            onConfigChange(node.id, {
+                sections: [{ title: '', items: [{ itemId: `item_${Date.now()}`, title: '' }] }],
+            });
+        }
+    }, [nodeType]);
+
     const messageText = (config.messageText as string) || '';
     const bodyTextCharsLeft = MAX_BODY_TEXT_CHARS - messageText.length;
 
@@ -280,6 +289,232 @@ export default function NodeSettingsPanel({ node, onConfigChange, onLabelChange,
                         </div>
                     </>
                 )}
+
+                {/* ======================== LIST ======================== */}
+                {nodeType === 'LIST' && (() => {
+                    const MAX_LIST_ITEMS = 10;
+                    const MAX_ITEM_TITLE_CHARS = 24;
+                    const MAX_ITEM_DESC_CHARS = 72;
+                    const MAX_BUTTON_TEXT_CHARS = 20;
+
+                    interface ListItem {
+                        itemId: string;
+                        title: string;
+                        description?: string;
+                    }
+                    interface ListSection {
+                        title: string;
+                        items: ListItem[];
+                    }
+
+                    const sections: ListSection[] = (config.sections as ListSection[]) || [];
+                    const listMessageText = (config.messageText as string) || '';
+                    const listButtonText = (config.buttonText as string) || '';
+                    const listBodyCharsLeft = MAX_BODY_TEXT_CHARS - listMessageText.length;
+                    const totalItems = sections.reduce((acc, s) => acc + (s.items?.length || 0), 0);
+
+                    const setSections = (newSections: ListSection[]) => {
+                        onConfigChange(node.id, { sections: newSections });
+                    };
+
+                    const addSection = () => {
+                        setSections([...sections, { title: '', items: [{ itemId: `item_${Date.now()}`, title: '' }] }]);
+                    };
+
+                    const removeSection = (sIdx: number) => {
+                        if (sections.length <= 1) return;
+                        setSections(sections.filter((_, i) => i !== sIdx));
+                    };
+
+                    const updateSectionTitle = (sIdx: number, title: string) => {
+                        const updated = [...sections];
+                        updated[sIdx] = { ...updated[sIdx], title };
+                        setSections(updated);
+                    };
+
+                    const addItem = (sIdx: number) => {
+                        if (totalItems >= MAX_LIST_ITEMS) return;
+                        const updated = [...sections];
+                        updated[sIdx] = {
+                            ...updated[sIdx],
+                            items: [...(updated[sIdx].items || []), { itemId: `item_${Date.now()}`, title: '' }],
+                        };
+                        setSections(updated);
+                    };
+
+                    const removeItem = (sIdx: number, iIdx: number) => {
+                        if (totalItems <= 1) return;
+                        const updated = [...sections];
+                        updated[sIdx] = {
+                            ...updated[sIdx],
+                            items: updated[sIdx].items.filter((_, i) => i !== iIdx),
+                        };
+                        // Remove section if it has no items
+                        if (updated[sIdx].items.length === 0) {
+                            updated.splice(sIdx, 1);
+                        }
+                        setSections(updated);
+                    };
+
+                    const updateItemTitle = (sIdx: number, iIdx: number, title: string) => {
+                        if (title.length > MAX_ITEM_TITLE_CHARS) return;
+                        const updated = [...sections];
+                        updated[sIdx] = {
+                            ...updated[sIdx],
+                            items: updated[sIdx].items.map((item, i) =>
+                                i === iIdx ? { ...item, title } : item
+                            ),
+                        };
+                        setSections(updated);
+                    };
+
+                    const updateItemDesc = (sIdx: number, iIdx: number, description: string) => {
+                        if (description.length > MAX_ITEM_DESC_CHARS) return;
+                        const updated = [...sections];
+                        updated[sIdx] = {
+                            ...updated[sIdx],
+                            items: updated[sIdx].items.map((item, i) =>
+                                i === iIdx ? { ...item, description } : item
+                            ),
+                        };
+                        setSections(updated);
+                    };
+
+                    return (
+                        <>
+                            {/* Message Text */}
+                            <div>
+                                <label className="input-label">Message Text</label>
+                                <textarea
+                                    value={listMessageText}
+                                    onChange={(e) => {
+                                        if (e.target.value.length <= MAX_BODY_TEXT_CHARS) {
+                                            updateConfig('messageText', e.target.value);
+                                        }
+                                    }}
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Please select from the list below:"
+                                />
+                                <p className={`text-xs mt-1 ${listBodyCharsLeft < 50 ? 'text-red-500' : 'text-surface-500'}`}>
+                                    {listBodyCharsLeft} / {MAX_BODY_TEXT_CHARS} characters remaining
+                                </p>
+                            </div>
+
+                            {/* Button Text */}
+                            <div>
+                                <label className="input-label">Button Text</label>
+                                <input
+                                    value={listButtonText}
+                                    onChange={(e) => {
+                                        if (e.target.value.length <= MAX_BUTTON_TEXT_CHARS) {
+                                            updateConfig('buttonText', e.target.value);
+                                        }
+                                    }}
+                                    className="input-field"
+                                    placeholder="View Options"
+                                    maxLength={MAX_BUTTON_TEXT_CHARS}
+                                />
+                                <p className="text-xs text-surface-500 mt-1">
+                                    Text shown on the list open button ({listButtonText.length}/{MAX_BUTTON_TEXT_CHARS})
+                                </p>
+                            </div>
+
+                            {/* Sections */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="input-label !mb-0">Sections & Items</label>
+                                    <span className="text-xs text-surface-500">{totalItems} / {MAX_LIST_ITEMS} items</span>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {sections.map((section, sIdx) => (
+                                        <div key={sIdx} className="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden">
+                                            {/* Section header */}
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 dark:bg-surface-800">
+                                                <input
+                                                    value={section.title}
+                                                    onChange={(e) => updateSectionTitle(sIdx, e.target.value)}
+                                                    className="input-field flex-1 !py-1.5 text-xs font-medium"
+                                                    placeholder={`Section ${sIdx + 1} title`}
+                                                />
+                                                {sections.length > 1 && (
+                                                    <button
+                                                        onClick={() => removeSection(sIdx)}
+                                                        className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Items in section */}
+                                            <div className="px-3 py-2 space-y-2">
+                                                {(section.items || []).map((item: ListItem, iIdx: number) => (
+                                                    <div key={item.itemId} className="border border-surface-200/60 dark:border-surface-700/60 rounded-lg p-2 space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                value={item.title}
+                                                                onChange={(e) => updateItemTitle(sIdx, iIdx, e.target.value)}
+                                                                className="input-field flex-1 !py-1.5 text-xs"
+                                                                placeholder={`Item ${iIdx + 1} title`}
+                                                                maxLength={MAX_ITEM_TITLE_CHARS}
+                                                            />
+                                                            <span className="text-[10px] text-surface-400 w-8 text-right whitespace-nowrap">
+                                                                {item.title.length}/{MAX_ITEM_TITLE_CHARS}
+                                                            </span>
+                                                            {totalItems > 1 && (
+                                                                <button
+                                                                    onClick={() => removeItem(sIdx, iIdx)}
+                                                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-surface-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <input
+                                                            value={item.description || ''}
+                                                            onChange={(e) => updateItemDesc(sIdx, iIdx, e.target.value)}
+                                                            className="input-field !py-1.5 text-xs text-surface-500"
+                                                            placeholder="Description (optional)"
+                                                            maxLength={MAX_ITEM_DESC_CHARS}
+                                                        />
+                                                    </div>
+                                                ))}
+
+                                                {/* Add item button */}
+                                                <button
+                                                    onClick={() => addItem(sIdx)}
+                                                    disabled={totalItems >= MAX_LIST_ITEMS}
+                                                    className={`w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed transition-colors ${totalItems >= MAX_LIST_ITEMS
+                                                        ? 'border-surface-200 dark:border-surface-700 text-surface-400 cursor-not-allowed opacity-50'
+                                                        : 'border-rose-300 dark:border-rose-600 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'
+                                                        }`}
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                    Add Item
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Add section button */}
+                                <button
+                                    onClick={addSection}
+                                    disabled={totalItems >= MAX_LIST_ITEMS}
+                                    className={`mt-2 w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg border border-dashed transition-colors ${totalItems >= MAX_LIST_ITEMS
+                                        ? 'border-surface-200 dark:border-surface-700 text-surface-400 cursor-not-allowed opacity-50'
+                                        : 'border-rose-300 dark:border-rose-600 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'
+                                        }`}
+                                >
+                                    <Plus className="w-3 h-3" />
+                                    Add Section
+                                </button>
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {/* ======================== INPUT ======================== */}
                 {nodeType === 'INPUT' && (

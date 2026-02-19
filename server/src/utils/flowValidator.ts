@@ -87,6 +87,45 @@ export const validateFlow = (flowData: IFlowData, flowName?: string): IValidatio
                 }
                 break;
             }
+            case 'LIST': {
+                const config = node.config as { messageText?: string; buttonText?: string; sections?: Array<{ title?: string; items?: Array<{ itemId: string; title: string; description?: string }> }> };
+                if (!config.messageText || config.messageText.trim() === '') {
+                    errors.push(makeError(node.nodeId, 'messageText', 'List message text is required'));
+                } else if (config.messageText.length > 1024) {
+                    errors.push(makeError(node.nodeId, 'messageText', 'Message text must not exceed 1024 characters'));
+                }
+                if (!config.buttonText || config.buttonText.trim() === '') {
+                    errors.push(makeError(node.nodeId, 'buttonText', 'List button text is required'));
+                } else if (config.buttonText.length > 20) {
+                    errors.push(makeError(node.nodeId, 'buttonText', 'Button text must not exceed 20 characters'));
+                }
+                if (!config.sections || config.sections.length === 0) {
+                    errors.push(makeError(node.nodeId, 'sections', 'At least one section is required'));
+                } else {
+                    let totalItems = 0;
+                    config.sections.forEach((section, sIdx) => {
+                        if (!section.items || section.items.length === 0) {
+                            errors.push(makeError(node.nodeId, `sections[${sIdx}]`, `Section ${sIdx + 1}: at least one item is required`));
+                        } else {
+                            totalItems += section.items.length;
+                            section.items.forEach((item, iIdx) => {
+                                if (!item.title || item.title.trim() === '') {
+                                    errors.push(makeError(node.nodeId, `sections[${sIdx}].items[${iIdx}]`, `Section ${sIdx + 1}, Item ${iIdx + 1}: title is required`));
+                                } else if (item.title.length > 24) {
+                                    errors.push(makeError(node.nodeId, `sections[${sIdx}].items[${iIdx}]`, `Section ${sIdx + 1}, Item ${iIdx + 1}: title must not exceed 24 characters`));
+                                }
+                                if (item.description && item.description.length > 72) {
+                                    errors.push(makeError(node.nodeId, `sections[${sIdx}].items[${iIdx}]`, `Section ${sIdx + 1}, Item ${iIdx + 1}: description must not exceed 72 characters`));
+                                }
+                            });
+                        }
+                    });
+                    if (totalItems > 10) {
+                        errors.push(makeError(node.nodeId, 'sections', `Total list items (${totalItems}) exceeds maximum of 10`));
+                    }
+                }
+                break;
+            }
             case 'INPUT': {
                 const config = node.config as { promptText?: string; variableName?: string };
                 if (!config.promptText || config.promptText.trim() === '') {
@@ -194,6 +233,16 @@ export const validateFlow = (flowData: IFlowData, flowName?: string): IValidatio
                 if (Array.isArray(config.buttons)) {
                     for (const btn of config.buttons as Array<{ nextNodeId?: string }>) {
                         if (btn.nextNodeId) traverse(btn.nextNodeId);
+                    }
+                }
+                // List sections/items branches
+                if (Array.isArray(config.sections)) {
+                    for (const section of config.sections as Array<{ items?: Array<{ nextNodeId?: string }> }>) {
+                        if (Array.isArray(section.items)) {
+                            for (const item of section.items) {
+                                if (item.nextNodeId) traverse(item.nextNodeId);
+                            }
+                        }
                     }
                 }
                 // Condition branches

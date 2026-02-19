@@ -177,7 +177,7 @@ export const pollSimulatorMessages = async (req: Request, res: Response, next: N
 
         // Format messages for the simulator
         const responses = newMessages.map((msg) => ({
-            type: msg.messageType === 'BUTTON' ? 'button' : 'text',
+            type: (msg.messageType === 'BUTTON' || msg.messageType === 'LIST') ? 'button' : 'text',
             content: msg.messageContent || '',
             sentAt: msg.sentAt,
         }));

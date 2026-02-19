@@ -6,10 +6,10 @@ import { Document, Types } from 'mongoose';
 
 export type TUserRole = 'ADMIN' | 'USER';
 export type TSessionStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CLOSED' | 'FAILED';
-export type TNodeType = 'START' | 'MESSAGE' | 'BUTTON' | 'INPUT' | 'CONDITION' | 'DELAY' | 'API' | 'AI' | 'LOOP' | 'END' | 'GOTO_SUBFLOW';
+export type TNodeType = 'START' | 'MESSAGE' | 'BUTTON' | 'LIST' | 'INPUT' | 'CONDITION' | 'DELAY' | 'API' | 'AI' | 'LOOP' | 'END' | 'GOTO_SUBFLOW';
 export type TVariableType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'OBJECT' | 'ARRAY';
 export type TMessageSender = 'USER' | 'BOT';
-export type TMessageType = 'TEXT' | 'BUTTON' | 'IMAGE' | 'DOCUMENT';
+export type TMessageType = 'TEXT' | 'BUTTON' | 'LIST' | 'IMAGE' | 'DOCUMENT';
 export type TInputType = 'TEXT' | 'NUMBER' | 'EMAIL' | 'PHONE' | 'CUSTOM_REGEX';
 export type THttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 export type TAuthType = 'NONE' | 'BEARER' | 'API_KEY' | 'BASIC_AUTH' | 'CUSTOM_HEADER';
@@ -219,6 +219,7 @@ export type INodeConfig =
     | IStartNodeConfig
     | IMessageNodeConfig
     | IButtonNodeConfig
+    | IListNodeConfig
     | IInputNodeConfig
     | IConditionNodeConfig
     | IDelayNodeConfig
@@ -248,6 +249,28 @@ export interface IButtonConfig {
 export interface IButtonNodeConfig {
     messageText?: string;
     buttons: IButtonConfig[];
+    fallback?: {
+        message?: string;
+        nextNodeId?: string;
+    };
+}
+
+export interface IListItemConfig {
+    itemId: string;
+    title: string;
+    description?: string;
+    nextNodeId?: string;
+}
+
+export interface IListSectionConfig {
+    title: string;
+    items: IListItemConfig[];
+}
+
+export interface IListNodeConfig {
+    messageText?: string;
+    buttonText?: string;    // Text shown on the list open button (max 20 chars)
+    sections: IListSectionConfig[];
     fallback?: {
         message?: string;
         nextNodeId?: string;

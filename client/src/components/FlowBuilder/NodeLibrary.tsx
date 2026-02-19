@@ -11,11 +11,13 @@ import {
     Square,
     ArrowRightCircle,
     GripVertical,
+    List,
 } from 'lucide-react';
 
 const nodeLibrary: Array<{ type: TNodeType; label: string; icon: React.ElementType; color: string; desc: string }> = [
     { type: 'MESSAGE', label: 'Message', icon: MessageSquare, color: 'text-blue-500', desc: 'Send text' },
     { type: 'BUTTON', label: 'Button', icon: MousePointer, color: 'text-violet-500', desc: 'Interactive buttons' },
+    { type: 'LIST', label: 'List', icon: List, color: 'text-rose-500', desc: 'List selection' },
     { type: 'INPUT', label: 'Input', icon: FormInput, color: 'text-amber-500', desc: 'Collect user input' },
     { type: 'CONDITION', label: 'Condition', icon: GitBranch, color: 'text-orange-500', desc: 'Branch logic' },
     { type: 'DELAY', label: 'Delay', icon: Clock, color: 'text-cyan-500', desc: 'Wait time' },

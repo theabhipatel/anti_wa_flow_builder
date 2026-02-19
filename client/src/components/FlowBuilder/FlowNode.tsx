@@ -15,12 +15,14 @@ import {
     Trash2,
     Hash,
     RefreshCw,
+    List,
 } from 'lucide-react';
 
 const nodeIcons: Record<string, React.ElementType> = {
     START: Play,
     MESSAGE: MessageSquare,
     BUTTON: MousePointer,
+    LIST: List,
     INPUT: FormInput,
     CONDITION: GitBranch,
     DELAY: Clock,
@@ -61,6 +63,16 @@ const nodeThemes: Record<string, { gradient: string; handleColor: string; border
         tagBg: 'bg-violet-100 dark:bg-violet-900/40',
         tagText: 'text-violet-700 dark:text-violet-400',
         glowColor: 'rgba(139, 92, 246, 0.35)',
+    },
+    LIST: {
+        gradient: 'from-rose-500/10 to-rose-500/5 dark:from-rose-500/20 dark:to-rose-500/5',
+        handleColor: '#f43f5e',
+        borderColor: 'border-rose-200/80 dark:border-rose-500/30',
+        selectedBorder: 'border-rose-400 dark:border-rose-500',
+        iconGlow: 'bg-gradient-to-br from-rose-400 to-rose-600 shadow-rose-500/30',
+        tagBg: 'bg-rose-100 dark:bg-rose-900/40',
+        tagText: 'text-rose-700 dark:text-rose-400',
+        glowColor: 'rgba(244, 63, 94, 0.35)',
     },
     INPUT: {
         gradient: 'from-amber-500/10 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/5',
@@ -149,6 +161,17 @@ interface ButtonItem {
     label: string;
 }
 
+interface ListItem {
+    itemId: string;
+    title: string;
+    description?: string;
+}
+
+interface ListSection {
+    title: string;
+    items: ListItem[];
+}
+
 export default function FlowNode({ data, selected }: NodeProps) {
     const nodeData = data as {
         nodeType: string;
@@ -165,6 +188,7 @@ export default function FlowNode({ data, selected }: NodeProps) {
 
     const isStartNode = nodeType === 'START';
     const isButtonNode = nodeType === 'BUTTON';
+    const isListNode = nodeType === 'LIST';
     const isConditionNode = nodeType === 'CONDITION';
     const isEndNode = nodeType === 'END';
     const isApiNode = nodeType === 'API';
@@ -181,8 +205,16 @@ export default function FlowNode({ data, selected }: NodeProps) {
         ? ((nodeData.config?.buttons as ButtonItem[]) || [])
         : [];
 
+    // Get list items for LIST node
+    const listSections: ListSection[] = isListNode
+        ? ((nodeData.config?.sections as ListSection[]) || [])
+        : [];
+    const allListItems: ListItem[] = listSections.flatMap((s) => s.items || []);
+
     // Get message text preview
     const buttonMessageText = isButtonNode ? (nodeData.config?.messageText as string) || '' : '';
+    const listMessageText = isListNode ? (nodeData.config?.messageText as string) || '' : '';
+    const listButtonText = isListNode ? (nodeData.config?.buttonText as string) || '' : '';
     const messagePreview = nodeType === 'MESSAGE' ? (nodeData.config?.messageText as string) || '' : '';
 
     const handleDuplicate = (e: React.MouseEvent) => {
@@ -297,6 +329,54 @@ export default function FlowNode({ data, selected }: NodeProps) {
                 </div>
             )}
 
+            {/* List Node — show message preview + per-item handles */}
+            {isListNode && (
+                <div className="border-t border-rose-200/60 dark:border-rose-700/40">
+                    {listMessageText && (
+                        <div className="px-4 py-2">
+                            <p className="text-[11px] text-surface-500 dark:text-surface-400 line-clamp-2 leading-relaxed">
+                                {listMessageText}
+                            </p>
+                        </div>
+                    )}
+                    {listButtonText && (
+                        <div className="px-4 py-1">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-rose-600 dark:text-rose-400">
+                                📋 {listButtonText}
+                            </span>
+                        </div>
+                    )}
+                    {allListItems.length > 0 && (
+                        <div className="relative">
+                            {allListItems.map((item, idx) => (
+                                <div
+                                    key={item.itemId}
+                                    className="flex items-center justify-between px-4 py-2 border-t border-rose-200/40 dark:border-rose-700/25 relative group"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <span className="text-[11px] font-medium text-surface-600 dark:text-surface-300 block truncate">
+                                            {item.title || `Item ${idx + 1}`}
+                                        </span>
+                                        {item.description && (
+                                            <span className="text-[9px] text-surface-400 dark:text-surface-500 block truncate">
+                                                {item.description}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <Handle
+                                        type="source"
+                                        position={Position.Right}
+                                        id={item.itemId}
+                                        className="!w-3 !h-3 !border-2 !border-white dark:!border-surface-800 !-right-[6px] !rounded-full group-hover:!scale-125 !transition-transform"
+                                        style={{ top: 'auto', position: 'absolute', right: -6, background: theme.handleColor }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Loop node — show mode badge */}
             {isLoopNode && (
                 <div className="border-t border-teal-200/60 dark:border-teal-700/40 px-4 py-1.5 flex items-center gap-1.5">
@@ -364,7 +444,7 @@ export default function FlowNode({ data, selected }: NodeProps) {
                         className="!w-3.5 !h-3.5 !border-2 !border-white dark:!border-surface-800 !-right-[7px] !rounded-full"
                     />
                 </>
-            ) : !isEndNode && !isButtonNode ? (
+            ) : !isEndNode && !isButtonNode && !isListNode ? (
                 <Handle
                     type="source"
                     position={Position.Right}

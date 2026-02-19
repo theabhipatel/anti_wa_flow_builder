@@ -112,6 +112,71 @@ export const sendButtonMessage = async (
 };
 
 /**
+ * Send an interactive list message via WhatsApp Cloud API
+ */
+export const sendListMessage = async (
+    phoneNumberId: string,
+    accessToken: string,
+    to: string,
+    bodyText: string,
+    buttonText: string,
+    sections: Array<{
+        title: string;
+        items: Array<{ itemId: string; title: string; description?: string }>;
+    }>
+): Promise<void> => {
+    const url = `${GRAPH_API_BASE}/${phoneNumberId}/messages`;
+
+    const waSections = sections.map((section) => ({
+        title: section.title || 'Options',
+        rows: section.items.map((item) => ({
+            id: item.itemId,
+            title: item.title,
+            ...(item.description ? { description: item.description } : {}),
+        })),
+    }));
+
+    let retries = 0;
+    const maxRetries = 3;
+
+    while (retries < maxRetries) {
+        try {
+            await axios.post(
+                url,
+                {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to,
+                    type: 'interactive',
+                    interactive: {
+                        type: 'list',
+                        body: { text: bodyText },
+                        action: {
+                            button: buttonText || 'Select',
+                            sections: waSections,
+                        },
+                    },
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+            return;
+        } catch (error) {
+            retries++;
+            if (retries >= maxRetries) {
+                console.error('[WhatsApp] Failed to send list message after retries:', error);
+                throw error;
+            }
+            await new Promise((r) => setTimeout(r, 1000 * retries));
+        }
+    }
+};
+
+/**
  * Validate WhatsApp credentials by fetching phone number info
  */
 export const validateCredentials = async (

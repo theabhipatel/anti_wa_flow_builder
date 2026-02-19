@@ -4,7 +4,7 @@
 
 export type TUserRole = 'ADMIN' | 'USER';
 export type TSessionStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CLOSED' | 'FAILED';
-export type TNodeType = 'START' | 'MESSAGE' | 'BUTTON' | 'INPUT' | 'CONDITION' | 'DELAY' | 'API' | 'AI' | 'LOOP' | 'END' | 'GOTO_SUBFLOW';
+export type TNodeType = 'START' | 'MESSAGE' | 'BUTTON' | 'LIST' | 'INPUT' | 'CONDITION' | 'DELAY' | 'API' | 'AI' | 'LOOP' | 'END' | 'GOTO_SUBFLOW';
 export type TVariableType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'OBJECT' | 'ARRAY';
 
 // ============================================================

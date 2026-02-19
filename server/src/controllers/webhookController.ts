@@ -140,7 +140,7 @@ const processIncomingMessage = async (
         from: string;
         type: string;
         text?: { body: string };
-        interactive?: { type: string; button_reply?: { id: string; title: string } };
+        interactive?: { type: string; button_reply?: { id: string; title: string }; list_reply?: { id: string; title: string; description?: string } };
         timestamp: string;
     }
 ): Promise<void> => {
@@ -249,6 +249,9 @@ const processIncomingMessage = async (
         } else if (message.type === 'interactive' && message.interactive?.button_reply) {
             buttonId = message.interactive.button_reply.id;
             incomingText = message.interactive.button_reply.title;
+        } else if (message.type === 'interactive' && message.interactive?.list_reply) {
+            buttonId = message.interactive.list_reply.id;
+            incomingText = message.interactive.list_reply.title;
         }
         console.log(`[Process Message] 📝 Extracted content:`);
         console.log(`  Text: "${incomingText || '(none)'}"`);
