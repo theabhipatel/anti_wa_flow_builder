@@ -23,6 +23,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import api from '../lib/api';
+import { useToast } from '../components/Toast';
 import { RootState } from '../store';
 import { setFlowData, markSaved, selectNode, updateNodeConfig, updateNodeLabel, deleteNode } from '../store/builderSlice';
 import { IFlowData, IFlowNode, IValidationResult, TNodeType } from '../types';
@@ -48,6 +49,7 @@ function FlowBuilderInner() {
     const { botId, flowId } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const toast = useToast();
     const { flowData, isDirty, selectedNodeId, lastSaved } = useSelector((state: RootState) => state.builder);
     const { fitView, getNodes: getRfNodes, getEdges: getRfEdges, screenToFlowPosition } = useReactFlow();
 
@@ -334,16 +336,17 @@ function FlowBuilderInner() {
         }, 50);
     }, [getRfNodes, getRfEdges, setNodes, fitView]);
 
-    // Save draft
-    const handleSave = async () => {
+    const handleSave = async (silent = false) => {
         setSaving(true);
         try {
             const data = buildFlowDataFromReactFlow();
             await api.put(`/bots/${botId}/flows/${flowId}/draft`, { flowData: data });
             dispatch(setFlowData(data));
             dispatch(markSaved());
+            if (!silent) toast.success('Flow saved successfully');
         } catch (err) {
             console.error(err);
+            if (!silent) toast.error('Failed to save flow');
         } finally {
             setSaving(false);
         }
@@ -351,14 +354,22 @@ function FlowBuilderInner() {
 
     // Validate
     const handleValidate = async () => {
-        await handleSave();
+        await handleSave(true);
         try {
             const res = await api.post(`/bots/${botId}/flows/${flowId}/validate`);
             if (res.data.success) {
                 setValidation(res.data.data);
+                const result = res.data.data;
+                if (result.isValid) {
+                    toast.success('Validation passed — no errors found');
+                } else {
+                    const errorCount = result.errors?.length || 0;
+                    toast.warning(`Validation found ${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+                }
             }
         } catch (err) {
             console.error(err);
+            toast.error('Validation failed');
         }
     };
 
@@ -373,11 +384,12 @@ function FlowBuilderInner() {
             onConfirm: async () => {
                 setConfirmModal((prev) => ({ ...prev, isOpen: false }));
                 setDeploying(true);
-                await handleSave();
+                await handleSave(true);
                 try {
                     const res = await api.post(`/bots/${botId}/flows/${flowId}/deploy`);
                     if (res.data.success) {
                         setValidation({ isValid: true, errors: [], warnings: [] });
+                        toast.success('Flow deployed to production successfully');
                     } else {
                         // Deploy returns data as array of {flowName, errors} — flatten into IValidationResult
                         const deployErrors = res.data.data;
@@ -386,8 +398,10 @@ function FlowBuilderInner() {
                                 (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
                             );
                             setValidation({ isValid: false, errors: allErrors, warnings: [] });
+                            toast.error(`Deploy failed — ${allErrors.length} validation error${allErrors.length !== 1 ? 's' : ''}`);
                         } else {
                             setValidation(deployErrors);
+                            toast.error('Deploy failed — validation errors found');
                         }
                     }
                 } catch (err: unknown) {
@@ -399,9 +413,13 @@ function FlowBuilderInner() {
                                 (f.errors || []).map((e) => ({ ...e, message: e.message || `Validation error in ${f.flowName}` }))
                             );
                             setValidation({ isValid: false, errors: allErrors, warnings: [] });
+                            toast.error(`Deploy failed — ${allErrors.length} validation error${allErrors.length !== 1 ? 's' : ''}`);
                         } else {
                             setValidation(deployErrors as IValidationResult);
+                            toast.error('Deploy failed — validation errors found');
                         }
+                    } else {
+                        toast.error('Deploy failed — unexpected error');
                     }
                 } finally {
                     setDeploying(false);
@@ -462,7 +480,7 @@ function FlowBuilderInner() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                    <button onClick={() => handleSave()} disabled={saving} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Save
                     </button>
