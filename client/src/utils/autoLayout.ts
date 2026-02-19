@@ -53,15 +53,24 @@ export function autoLayoutNodes(nodes: Node[], edges: Edge[]): LayoutResult {
     const layerMap = new Map<string, number>();  // nodeId → layer index
     const visited = new Set<string>();
     const queue: { id: string; layer: number }[] = [];
+    // Track how many times each node has been enqueued to prevent infinite cycles
+    const enqueueCount = new Map<string, number>();
+    const MAX_ENQUEUE_PER_NODE = 2; // Allow at most 2 passes per node
+    const MAX_ITERATIONS = nodes.length * 4; // Safety cap for total BFS iterations
+    let iterations = 0;
 
     for (const root of roots) {
         if (!visited.has(root.id)) {
             queue.push({ id: root.id, layer: 0 });
             visited.add(root.id);
+            enqueueCount.set(root.id, 1);
         }
     }
 
     while (queue.length > 0) {
+        // Safety: prevent infinite loop if cycle detection fails
+        if (++iterations > MAX_ITERATIONS) break;
+
         const { id, layer } = queue.shift()!;
         // If already assigned to a deeper layer, keep the deeper one
         const existingLayer = layerMap.get(id);
@@ -75,16 +84,25 @@ export function autoLayoutNodes(nodes: Node[], edges: Edge[]): LayoutResult {
         for (const target of targets) {
             const targetLayer = layer + 1;
             const existingTargetLayer = layerMap.get(target);
-            // Only visit if not visited or if we found a deeper path
+            const targetEnqueues = enqueueCount.get(target) || 0;
+
             if (!visited.has(target)) {
                 visited.add(target);
                 layerMap.set(target, targetLayer);
                 queue.push({ id: target, layer: targetLayer });
-            } else if (existingTargetLayer !== undefined && existingTargetLayer < targetLayer) {
-                // Push to deeper layer (re-enqueue)
+                enqueueCount.set(target, targetEnqueues + 1);
+            } else if (
+                existingTargetLayer !== undefined &&
+                existingTargetLayer < targetLayer &&
+                targetEnqueues < MAX_ENQUEUE_PER_NODE
+            ) {
+                // Push to deeper layer, but only if we haven't re-enqueued too many times
+                // This prevents infinite loops caused by cycles in the graph
                 layerMap.set(target, targetLayer);
                 queue.push({ id: target, layer: targetLayer });
+                enqueueCount.set(target, targetEnqueues + 1);
             }
+            // Back-edges in cycles are silently skipped (target stays at its current layer)
         }
     }
 
