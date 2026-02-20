@@ -415,7 +415,7 @@ export default function ConversationsPage() {
     const selectedBot = bots.find((b) => b._id === selectedBotId);
 
     return (
-        <div className="h-[calc(100vh-7rem)] flex flex-col animate-fade-in">
+        <div className="h-[calc(100vh-7rem)] max-w-7xl mx-auto flex flex-col animate-fade-in">
             {/* Header */}
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <div>
