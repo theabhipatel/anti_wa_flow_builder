@@ -70,7 +70,7 @@ export default function AIManagementPage() {
     ];
 
     return (
-        <div className="max-w-6xl mx-auto animate-fade-in">
+        <div className="max-w-7xl mx-auto animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
                     <Brain className="w-5 h-5 text-white" />
