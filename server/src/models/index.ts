@@ -10,3 +10,4 @@ export { default as SessionVariable } from './SessionVariable';
 export { default as Message } from './Message';
 export { default as BotVariable } from './BotVariable';
 export { default as ExecutionLog } from './ExecutionLog';
+export { default as ConversationMessage } from './ConversationMessage';

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { WhatsAppAccount, Bot, Flow, FlowVersion, Session } from '../models';
+import { WhatsAppAccount, Bot, Flow, FlowVersion, Session, ConversationMessage } from '../models';
 import { decrypt } from '../utils/encryption';
 import * as executionService from '../services/executionService';
 import * as sessionService from '../services/sessionService';
@@ -256,6 +256,22 @@ const processIncomingMessage = async (
         console.log(`[Process Message] 📝 Extracted content:`);
         console.log(`  Text: "${incomingText || '(none)'}"`);
         console.log(`  Button ID: "${buttonId || '(none)'}"`);
+
+        // Step 6b: Log incoming user message to permanent ConversationMessage table
+        if (incomingText) {
+            try {
+                await ConversationMessage.create({
+                    botId,
+                    userPhoneNumber: senderPhone,
+                    sender: 'USER',
+                    messageType: 'TEXT',
+                    messageContent: incomingText,
+                    sentAt: new Date(),
+                });
+            } catch (err) {
+                console.error('[Process Message] Failed to log conversation message:', err);
+            }
+        }
 
         // Step 7: Handle keywords and fallback before executing flow
         console.log(`[Process Message] 🚀 Checking for restart keywords / fallback...`);

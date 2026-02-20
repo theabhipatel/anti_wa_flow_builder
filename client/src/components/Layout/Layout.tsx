@@ -41,6 +41,7 @@ export default function Layout() {
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/bots', icon: Bot, label: 'Bots' },
+        { to: '/conversations', icon: MessageSquare, label: 'Conversations' },
         { to: '/ai-management', icon: Brain, label: 'AI Management' },
         ...(user?.role === 'ADMIN' ? [{ to: '/admin', icon: Shield, label: 'Admin' }] : []),
     ];

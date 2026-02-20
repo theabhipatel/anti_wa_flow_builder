@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
-import { Flow, FlowVersion, Session, Message, ExecutionLog, AIProvider, WhatsAppAccount } from '../models';
+import { Flow, FlowVersion, Session, Message, ExecutionLog, AIProvider, WhatsAppAccount, ConversationMessage } from '../models';
+import { TConversationSender, TMessageType } from '../types';
 import {
     IFlowNode,
     IFlowData,
@@ -33,6 +34,33 @@ interface IExecutionContext {
     accessToken?: string;
     isSimulator: boolean;
     simulatorResponses: Array<{ type: string; content: string; buttons?: Array<{ id: string; label: string }> }>;
+}
+
+/**
+ * Helper: dual-write a message to the permanent ConversationMessage table.
+ * Skips simulator/test messages.
+ */
+const logConversationMessage = async (
+    botId: unknown,
+    userPhoneNumber: string,
+    sender: TConversationSender,
+    messageContent: string | undefined,
+    messageType: TMessageType = 'TEXT',
+    isSimulator: boolean = false
+): Promise<void> => {
+    if (isSimulator) return; // Don't log simulator test messages
+    try {
+        await ConversationMessage.create({
+            botId,
+            userPhoneNumber,
+            sender,
+            messageType,
+            messageContent,
+            sentAt: new Date(),
+        });
+    } catch (err) {
+        console.error('[ConversationMessage] Failed to log conversation message:', err);
+    }
 }
 
 /**
@@ -94,6 +122,7 @@ export const executeFlow = async (
             messageContent: incomingMessage,
             sentAt: new Date(),
         });
+        // Note: USER messages are logged in webhookController for real WhatsApp messages
     }
 
     // Execute the current node
@@ -193,6 +222,7 @@ export const handleIncomingMessageWithKeywords = async (
             messageContent: incomingText,
             sentAt: new Date(),
         });
+        // Note: USER messages are logged in webhookController for real WhatsApp messages
 
         if (isSimulator) {
             // Log bot fallback message
@@ -203,6 +233,7 @@ export const handleIncomingMessageWithKeywords = async (
                 messageContent: fallbackMessage,
                 sentAt: new Date(),
             });
+            await logConversationMessage(session.botId, session.userPhoneNumber, 'BOT', fallbackMessage, 'TEXT', isSimulator);
             return { handled: true, responses: [{ type: 'text', content: fallbackMessage }] };
         } else {
             // Send via WhatsApp
@@ -224,6 +255,7 @@ export const handleIncomingMessageWithKeywords = async (
                 messageContent: fallbackMessage,
                 sentAt: new Date(),
             });
+            await logConversationMessage(session.botId, session.userPhoneNumber, 'BOT', fallbackMessage, 'TEXT', false);
             return { handled: true, responses: [] };
         }
     }
@@ -393,6 +425,7 @@ const executeMessageNode = async (context: IExecutionContext, node: IFlowNode): 
         nodeId: node.nodeId,
         sentAt: new Date(),
     });
+    await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', resolvedMessage, 'TEXT', context.isSimulator);
 
     const nextEdge = context.flowData.edges.find((e) => e.sourceNodeId === node.nodeId);
     return config.nextNodeId || nextEdge?.targetNodeId;
@@ -432,6 +465,10 @@ const executeButtonNode = async (context: IExecutionContext, node: IFlowNode): P
             nodeId: node.nodeId,
             sentAt: new Date(),
         });
+        // Store button message with button options for conversation view
+        const buttonLines = config.buttons.map((b) => `  ○ ${b.label}`).join('\n');
+        const fullButtonContent = `${resolvedText}\n\n🔘 Options:\n${buttonLines}`;
+        await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', fullButtonContent, 'BUTTON', context.isSimulator);
 
         // Pause and wait for user click — session stays at this node
         await sessionService.updateSessionState(context.session._id, {
@@ -536,6 +573,23 @@ const executeListNode = async (context: IExecutionContext, node: IFlowNode): Pro
             nodeId: node.nodeId,
             sentAt: new Date(),
         });
+        // Store list message with all section/item details for conversation view
+        let listDetails = '';
+        if (sections && sections.length > 0) {
+            listDetails = sections.map((s) => {
+                const sectionTitle = s.title ? `📋 ${s.title}` : '📋 Options';
+                const sectionItems = (s.items || []).map((item) => {
+                    const desc = item.description ? ` — ${item.description}` : '';
+                    return `  ○ ${item.title}${desc}`;
+                }).join('\n');
+                return `${sectionTitle}\n${sectionItems}`;
+            }).join('\n\n');
+        }
+        const fullListContent = listDetails
+            ? `${resolvedText}\n\n${listDetails}`
+            : resolvedText;
+        console.log(`[ConversationMessage] 📋 Saving LIST message for ${context.session.userPhoneNumber}:`, fullListContent.substring(0, 100));
+        await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', fullListContent, 'LIST', context.isSimulator);
 
         // Pause and wait for user selection — session stays at this node
         await sessionService.updateSessionState(context.session._id, {
@@ -622,6 +676,7 @@ const executeInputNode = async (context: IExecutionContext, node: IFlowNode): Pr
             nodeId: node.nodeId,
             sentAt: new Date(),
         });
+        await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', resolvedPrompt, 'TEXT', context.isSimulator);
 
         await sessionService.updateSessionState(context.session._id, {
             currentNodeId: node.nodeId,
@@ -1357,6 +1412,7 @@ const executeAiNode = async (context: IExecutionContext, node: IFlowNode): Promi
                 nodeId: node.nodeId,
                 sentAt: new Date(),
             });
+            await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', result.content, 'TEXT', context.isSimulator);
         }
 
         // ─── Success routing (edge-based) ────────────────────────
@@ -1738,6 +1794,7 @@ const executeEndNode = async (context: IExecutionContext, node: IFlowNode): Prom
             nodeId: node.nodeId,
             sentAt: new Date(),
         });
+        await logConversationMessage(context.session.botId, context.session.userPhoneNumber, 'BOT', resolvedMsg, 'TEXT', context.isSimulator);
     }
 
     // Clear subflow call stack to prevent returning to parent flow

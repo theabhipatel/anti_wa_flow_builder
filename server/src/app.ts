@@ -15,6 +15,7 @@ import aiLogRoutes from './routes/aiLogRoutes';
 import simulatorRoutes from './routes/simulatorRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import adminRoutes from './routes/adminRoutes';
+import conversationRoutes from './routes/conversationRoutes';
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/ai-logs', aiLogRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

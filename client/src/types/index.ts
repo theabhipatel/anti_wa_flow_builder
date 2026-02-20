@@ -132,3 +132,23 @@ export interface IApiResponse<T = unknown> {
     message?: string;
     error?: string;
 }
+
+export type TConversationSender = 'USER' | 'BOT' | 'MANUAL';
+
+export interface IConversationSummary {
+    phoneNumber: string;
+    lastMessage: string;
+    lastMessageAt: string;
+    lastSender: TConversationSender;
+    messageCount: number;
+}
+
+export interface IConversationMessage {
+    _id: string;
+    botId: string;
+    userPhoneNumber: string;
+    sender: TConversationSender;
+    messageType: string;
+    messageContent?: string;
+    sentAt: string;
+}

@@ -6,7 +6,7 @@ const MessageSchema = new Schema<IMessage>({
     sender: { type: String, enum: ['USER', 'BOT'], required: true },
     messageType: {
         type: String,
-        enum: ['TEXT', 'BUTTON', 'IMAGE', 'DOCUMENT'],
+        enum: ['TEXT', 'BUTTON', 'LIST', 'IMAGE', 'DOCUMENT'],
         default: 'TEXT',
     },
     messageContent: { type: String },

@@ -9,6 +9,7 @@ export type TSessionStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CLOSED' | 'FAI
 export type TNodeType = 'START' | 'MESSAGE' | 'BUTTON' | 'LIST' | 'INPUT' | 'CONDITION' | 'DELAY' | 'API' | 'AI' | 'LOOP' | 'END' | 'GOTO_SUBFLOW';
 export type TVariableType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'OBJECT' | 'ARRAY';
 export type TMessageSender = 'USER' | 'BOT';
+export type TConversationSender = 'USER' | 'BOT' | 'MANUAL';
 export type TMessageType = 'TEXT' | 'BUTTON' | 'LIST' | 'IMAGE' | 'DOCUMENT';
 export type TInputType = 'TEXT' | 'NUMBER' | 'EMAIL' | 'PHONE' | 'CUSTOM_REGEX';
 export type THttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -156,6 +157,18 @@ export interface IMessage extends Document {
     messageContent?: string;
     nodeId?: string;
     sentAt: Date;
+}
+
+export interface IConversationMessage extends Document {
+    _id: Types.ObjectId;
+    botId: Types.ObjectId;
+    userPhoneNumber: string;
+    sender: TConversationSender;
+    messageType: TMessageType;
+    messageContent?: string;
+    sentAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface IBotVariable extends Document {
