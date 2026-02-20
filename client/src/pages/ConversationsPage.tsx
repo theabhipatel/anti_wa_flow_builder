@@ -186,6 +186,7 @@ export default function ConversationsPage() {
     const [botDropdownOpen, setBotDropdownOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const toast = useToast();
@@ -215,7 +216,8 @@ export default function ConversationsPage() {
                 if (res.data.success) {
                     setBots(res.data.data);
                     if (res.data.data.length > 0 && !selectedBotId) {
-                        setSelectedBotId(res.data.data[0]._id);
+                        // Default to the first-created bot (API returns newest first)
+                        setSelectedBotId(res.data.data[res.data.data.length - 1]._id);
                     }
                 }
             } catch (err) {
@@ -272,15 +274,43 @@ export default function ConversationsPage() {
         }
     }, []);
 
+    // Track whether we should force scroll (initial load / conversation switch)
+    const shouldForceScrollRef = useRef(true);
+    // Track scroll position continuously (BEFORE new messages render)
+    const isUserNearBottomRef = useRef(true);
+
     useEffect(() => {
         if (selectedBotId && selectedPhone) {
+            shouldForceScrollRef.current = true;
+            isUserNearBottomRef.current = true;
             fetchMessages(selectedBotId, selectedPhone);
         }
     }, [selectedBotId, selectedPhone, fetchMessages]);
 
-    // --- Scroll to bottom on new messages ---
+    // --- Scroll listener: continuously track if user is near bottom ---
     useEffect(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        const handleScroll = () => {
+            isUserNearBottomRef.current =
+                container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        };
+
+        container.addEventListener('scroll', handleScroll);
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [selectedPhone]); // Re-attach when conversation changes
+
+    const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // --- Scroll on messages change ---
+    useEffect(() => {
+        if (shouldForceScrollRef.current || isUserNearBottomRef.current) {
+            scrollToBottom();
+            shouldForceScrollRef.current = false;
+        }
     }, [messages]);
 
     // --- Polling (30 seconds) — fully silent, no loading indicators ---
@@ -588,7 +618,7 @@ export default function ConversationsPage() {
                             </div>
 
                             {/* Messages */}
-                            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                                 {loadingMsgs ? (
                                     <div className="flex items-center justify-center h-full">
                                         <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
