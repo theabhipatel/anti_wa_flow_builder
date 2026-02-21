@@ -214,10 +214,10 @@ export default function ConversationsPage() {
             try {
                 const res = await api.get('/bots');
                 if (res.data.success) {
-                    setBots(res.data.data);
-                    if (res.data.data.length > 0 && !selectedBotId) {
-                        // Default to the first-created bot (API returns newest first)
-                        setSelectedBotId(res.data.data[res.data.data.length - 1]._id);
+                    const sorted = [...res.data.data].sort((a: IBot, b: IBot) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    setBots(sorted);
+                    if (sorted.length > 0 && !selectedBotId) {
+                        setSelectedBotId(sorted[0]._id);
                     }
                 }
             } catch (err) {
@@ -441,7 +441,7 @@ export default function ConversationsPage() {
 
                     {botDropdownOpen && (
                         <div className="absolute right-0 top-full mt-2 w-full min-w-[260px] bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto">
-                            {bots.map((bot) => (
+                            {[...bots].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((bot) => (
                                 <button
                                     key={bot._id}
                                     onClick={() => {
