@@ -118,8 +118,8 @@ export default function BotListPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {bots.map((bot) => (
-                        <div key={bot._id} className="card p-6 hover:scale-[1.02] transition-all duration-200 group">
+                    {[...bots].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((bot) => (
+                        <div key={bot._id} className="card p-6 hover:scale-[1.02] transition-all duration-200 group flex flex-col">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
                                     <Bot className="w-5 h-5 text-white" />
@@ -130,7 +130,7 @@ export default function BotListPage() {
                             </div>
 
                             <h3 className="font-semibold text-lg mb-1">{bot.name}</h3>
-                            {bot.description && <p className="text-sm text-surface-500 mb-4 line-clamp-2">{bot.description}</p>}
+                            <p className="text-sm text-surface-500 mb-4 line-clamp-1 min-h-[1.25rem]">{bot.description || '\u00A0'}</p>
 
                             <div className="flex items-center gap-4 text-xs text-surface-500 mb-4">
                                 <span className="flex items-center gap-1"><GitBranch className="w-3.5 h-3.5" /> {bot.flowCount ?? 0} flows</span>
@@ -144,7 +144,7 @@ export default function BotListPage() {
                                 </span>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 mt-auto">
                                 <button onClick={() => navigate(`/bots/${bot._id}/flows`)} className="flex-1 btn-primary text-sm py-2">
                                     <GitBranch className="w-3.5 h-3.5 inline mr-1" /> Flows
                                 </button>
