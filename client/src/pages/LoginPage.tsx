@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginSuccess } from '../store/authSlice';
 import api from '../lib/api';
 import { MessageSquare, Eye, EyeOff, Loader2, User, Shield, Zap, GitBranch, Bot } from 'lucide-react';
@@ -140,11 +140,12 @@ export default function LoginPage() {
                     </div>
 
                     {/* Bottom footer */}
-                    <div className="mt-12 pt-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                        <p className="text-surface-600 text-xs">
-                            © 2026 WA Flow Builder · Secure & Encrypted
+                    <div className="mt-6 pt-6 flex justify-between items-end" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                        <DevelopedBy />
+                        <p className="text-surface-600 text-xs mb-0.5">
+                            © {new Date().getFullYear()} WA Flow Builder · Secure & Encrypted
                         </p>
-                    </div>
+                    </div> 
                 </div>
             </div>
 
@@ -357,10 +358,24 @@ export default function LoginPage() {
 
                     {/* Footer below card */}
                     <p className="text-center text-[11px] text-surface-600 mt-4">
-                        Secure login · End-to-end encrypted
+                        Secure login · Wa Flow Builder by TheAbhiPatel
                     </p>
                 </div>
             </div>
         </div>
     );
 }
+
+
+const DevelopedBy = () => {
+  return (
+    <div className="flex flex-col">
+      <span className="text-gray-300/50 text-xs leading-none">Developed by</span>
+      <Link to={"https://www.theabhipatel.com/"} target="_theabhipatel">
+        <span className="bg-gradient-to-r from-orange-600 via-orange-500 to-yellow-500 bg-clip-text text-lg leading-none font-semibold tracking-wide text-transparent">
+          TheAbhiPatel
+        </span>
+      </Link>
+    </div>
+  );
+};
