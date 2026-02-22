@@ -2,10 +2,16 @@
     "version": 2,
     "framework": null,
     "installCommand": "npm install && cd server && npm install && cd ../client && npm install",
-    "buildCommand": "cd client && npm run build",
+    "buildCommand": "cd server && npm run build && cd ../client && npm run build",
     "outputDirectory": "client/dist",
     "rewrites": [
-        { "source": "/api/(.*)", "destination": "/api" },
-        { "source": "/(.*)", "destination": "/index.html" }
+        {
+            "source": "/api/(.*)",
+            "destination": "/api"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
     ]
 }
