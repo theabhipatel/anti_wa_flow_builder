@@ -1,132 +1,424 @@
-# WhatsApp Flow Builder Platform
-
-A production-ready, visual WhatsApp chatbot builder with a drag-and-drop flow canvas, real-time simulator, and WhatsApp Cloud API integration.
-
-## Architecture
+<div align="center">
 
 ```
-├── server/          # Express + TypeScript + MongoDB backend
-│   ├── src/
-│   │   ├── models/      # Mongoose schemas (User, Bot, Flow, Session, etc.)
-│   │   ├── controllers/ # Route handlers (auth, bot, flow, webhook, etc.)
-│   │   ├── services/    # Business logic (execution engine, WhatsApp, OpenAI)
-│   │   ├── middlewares/ # Auth, rate limiting, error handling
-│   │   ├── routes/      # Express route definitions
-│   │   └── utils/       # Encryption, flow validation
-│   └── package.json
-├── client/          # Vite + React + TypeScript + Tailwind CSS frontend
-│   ├── src/
-│   │   ├── components/  # FlowBuilder (FlowNode, NodeLibrary, Settings, Simulator)
-│   │   ├── pages/       # Login, Dashboard, BotList, FlowBuilder, Admin, Settings
-│   │   ├── store/       # Redux slices (auth, builder with undo/redo)
-│   │   ├── lib/         # Axios API client with JWT interceptor
-│   │   └── types/       # Shared TypeScript interfaces
-│   └── package.json
+ __        ___           _            _             
+ \ \      / / |__   __ _| |_ ___  __ _| |_ __  _ __  
+  \ \ /\ / /| '_ \ / _` | __/ __|/ _` | | '_ \| '_ \ 
+   \ V  V / | | | | (_| | |_\__ \ (_| | | |_) | |_) |
+    \_/\_/  |_| |_|\__,_|\__|___/\__,_|_| .__/| .__/ 
+                                        |_|   |_|    
+  _____ _                 ____        _ _     _           
+ |  ___| | _____      __ | __ ) _   _(_) | __| | ___ _ __ 
+ | |_  | |/ _ \ \ /\ / / |  _ \| | | | | |/ _` |/ _ \ '__|
+ |  _| | | (_) \ V  V /  | |_) | |_| | | | (_| |  __/ |   
+ |_|   |_|\___/ \_/\_/   |____/ \__,_|_|_|\__,_|\___|_|   
 ```
 
-## Features
+### ⚡ Created by
 
-### 10 Node Types
+```
+ ████████╗██╗  ██╗███████╗ █████╗ ██████╗ ██╗  ██╗██╗██████╗  █████╗ ████████╗███████╗██╗     
+ ╚══██╔══╝██║  ██║██╔════╝██╔══██╗██╔══██╗██║  ██║██║██╔══██╗██╔══██╗╚══██╔══╝██╔════╝██║     
+    ██║   ███████║█████╗  ███████║██████╔╝███████║██║██████╔╝███████║   ██║   █████╗  ██║     
+    ██║   ██╔══██║██╔══╝  ██╔══██║██╔══██╗██╔══██║██║██╔═══╝ ██╔══██║   ██║   ██╔══╝  ██║     
+    ██║   ██║  ██║███████╗██║  ██║██████╔╝██║  ██║██║██║     ██║  ██║   ██║   ███████╗███████╗
+    ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝
+```
+
+[![GitHub](https://img.shields.io/badge/GitHub-@theabhipatel-181717?style=for-the-badge&logo=github)](https://github.com/theabhipatel)
+
+</div>
+
+# WA Flow Builder
+
+A full-stack **WhatsApp chatbot builder** with a visual drag-and-drop flow editor. Design complex conversational flows, connect them to the WhatsApp Cloud API, and deploy — all from an intuitive web interface.
+
+Built with **React + TypeScript** on the frontend and **Node.js + Express + MongoDB** on the backend. Deployable to **Vercel** as a single project.
+
+---
+
+## ✨ Features
+
+### 🎨 Visual Flow Builder
+- **Drag-and-drop canvas** powered by React Flow — design chatbot conversations visually
+- **11 node types**: Message, Button, List, Input, Condition, Delay, API Call, AI Reply, Loop, Go to Subflow, End
+- **Real-time simulator** — test your flows directly in the browser without sending real WhatsApp messages
+- **Auto-arrange** — automatically lay out nodes for a clean, readable flow
+- **Node duplication & deletion** with confirmation modals
+- **Edge management** — clickable, deletable connections with glow effects
+- **Draft & deploy workflow** — save drafts, validate, and deploy to production with a single click
+
+### 🤖 Node Types
+
 | Node | Description |
 |------|-------------|
-| **START** | Entry point for every flow |
-| **MESSAGE** | Send text messages with `{{variable}}` interpolation |
-| **BUTTON** | Interactive button menus (up to 3 buttons) |
-| **INPUT** | Collect user input with regex validation |
-| **CONDITION** | Branch logic (equals, contains, regex, >, <) |
-| **DELAY** | Pause execution (cron-based resume) |
-| **API** | HTTP requests (GET/POST/PUT/DELETE) with variable storage |
-| **AI** | OpenAI GPT integration with custom prompts |
-| **LOOP** | Iterate over arrays with max iteration limits |
-| **END** | Terminate flow with optional farewell message |
+| **Message** | Send a text message to the user |
+| **Button** | Send interactive button messages (up to 3 buttons) |
+| **List** | Send list selection messages with multiple sections |
+| **Input** | Collect user input with validation (text, number, email, phone, regex) |
+| **Condition** | Branch logic based on keyword match, variable comparison, or logical expressions |
+| **Delay** | Pause execution for a specified duration |
+| **API Call** | Make HTTP requests with auth, headers, body, response mapping, and retry logic |
+| **AI Reply** | Generate responses using AI providers (OpenAI, Gemini, Groq, Mistral, OpenRouter, etc.) |
+| **Loop** | Iterate over arrays, count-based ranges, or condition-based loops |
+| **Go to Subflow** | Jump to a reusable subflow and return after completion |
+| **End** | Terminate the flow with an optional farewell message |
 
-### Core Capabilities
-- **Visual Flow Builder** — React Flow canvas with drag-and-drop, zoom, pan, minimap
-- **WhatsApp Cloud API v24.0** — Send messages, interactive buttons, webhook handling
-- **OpenAI Integration** — Per-user encrypted API keys, GPT-powered AI nodes
-- **Flow Versioning** — Draft/Production versions with deploy and rollback
-- **Session Management** — Per-user session isolation with variable scoping
-- **Built-in Simulator** — Test flows without WhatsApp in a chat-style panel
-- **Admin Panel** — User/bot monitoring with role-based access (ADMIN/USER)
-- **Undo/Redo** — 50-action stack in the flow builder
-- **Flow Validation** — Check for missing START/END, disconnected nodes, empty configs
+### 📱 WhatsApp Integration
+- Direct integration with the **WhatsApp Cloud API** (Meta Graph API v24.0)
+- Supports **text messages**, **interactive buttons**, and **list messages**
+- Webhook endpoint for receiving incoming messages from WhatsApp
+- Automatic message retry with exponential backoff
+- Credential validation against Meta's API
 
-## Quick Start
+### 🧠 AI Integration
+- Multi-provider support: **OpenAI, Gemini, Groq, Mistral, OpenRouter**, and custom providers
+- Configurable model parameters (temperature, max tokens, top-p, frequency/presence penalty, etc.)
+- Conversation history inclusion for contextual AI responses
+- Response variable mapping and token usage tracking
+- AI API logs with detailed analytics (tokens, latency, errors)
+
+### 🔄 Flow Versioning
+- **Draft / Production** versioning system — edit drafts without affecting live flows
+- **Version history** — keeps the last 3 deployed versions for rollback capability
+- Automatic cleanup of old versions to prevent unbounded database growth
+- Rollback to any previous version
+
+### 💬 Conversations
+- Real-time conversation viewer for all connected WhatsApp numbers
+- Message history with sender identification (user, bot, manual)
+- Per-bot conversation filtering
+
+### 🔒 Security
+- JWT-based authentication with token refresh
+- Password hashing with bcryptjs
+- AES encryption for sensitive data (API keys, access tokens)
+- Helmet.js security headers
+- Rate limiting (API: 100 req/min, Auth: 20 req/15min, Webhooks: 500 req/min)
+- CORS protection
+
+### 📊 Additional Features
+- **Dashboard** with bot overview and analytics
+- **Bot variables** — global variables shared across all flows and sessions
+- **Session variables** — per-conversation state management
+- **Profile management** — update name and password
+- **Admin panel** for user management
+- **Dark mode** support
+- **Responsive UI** built with Tailwind CSS
+
+---
+
+## 🏗️ Tech Stack
+
+### Frontend
+- **React 19** with TypeScript
+- **Vite** — fast build tooling with HMR
+- **React Flow** (`@xyflow/react`) — interactive node-based canvas
+- **Redux Toolkit** — state management
+- **React Router v7** — client-side routing
+- **Axios** — HTTP client
+- **Tailwind CSS** — utility-first styling
+- **Lucide React** — icon library
+
+### Backend
+- **Node.js** with TypeScript
+- **Express** — web framework
+- **MongoDB** with **Mongoose** ODM
+- **JWT** (`jsonwebtoken`) — authentication
+- **bcryptjs** — password hashing
+- **crypto-js** — AES encryption for secrets
+- **node-cron** — scheduled tasks (delay node processing)
+- **Helmet** — security headers
+- **express-rate-limit** — API rate limiting
+- **Morgan** — HTTP request logging (dev mode)
+
+### Deployment
+- **Vercel** — serverless functions + static hosting
+
+---
+
+## 📁 Project Structure
+
+```
+wa-flow-builder/
+├── api/
+│   └── index.ts                 # Vercel serverless entry point
+├── client/                      # React frontend
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── FlowBuilder/     # Canvas, nodes, edges, simulator, settings panel
+│   │   │   └── Layout/          # Sidebar, header, layout wrapper
+│   │   ├── pages/               # Route pages (Dashboard, Bots, Flows, Builder, etc.)
+│   │   ├── store/               # Redux slices (auth, builder)
+│   │   ├── lib/                 # Axios API client
+│   │   ├── types/               # TypeScript interfaces
+│   │   └── utils/               # Auto-layout, helpers
+│   ├── index.html
+│   ├── vite.config.ts
+│   └── tailwind.config.js
+├── server/                      # Express backend
+│   ├── src/
+│   │   ├── controllers/         # Route handlers
+│   │   ├── middlewares/         # Auth, error handling, rate limiting
+│   │   ├── models/              # Mongoose schemas
+│   │   ├── routes/              # Express routers
+│   │   ├── services/            # Business logic (execution, WhatsApp, AI, delay)
+│   │   ├── types/               # TypeScript interfaces & type definitions
+│   │   ├── utils/               # Flow validator, DB connection, encryption
+│   │   ├── app.ts               # Express app setup
+│   │   └── server.ts            # Server entry point (local development)
+│   └── .env.example
+├── vercel.json                  # Vercel deployment config
+├── package.json                 # Root package.json
+└── README.md
+```
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- MongoDB 6+
 
-### 1. Clone and install
+- **Node.js** v18 or higher
+- **MongoDB** (local or cloud — [MongoDB Atlas](https://www.mongodb.com/atlas) free tier works great)
+- **npm** (comes with Node.js)
+
+### 1. Clone the Repository
+
 ```bash
-npm install --prefix server
-npm install --prefix client
+git clone https://github.com/theabhipatel/wa-flow-builder.git
+cd wa-flow-builder
 ```
 
-### 2. Configure environment
+### 2. Install Dependencies
+
+```bash
+# Install server dependencies
+cd server
+npm install
+
+# Install client dependencies
+cd ../client
+npm install
+```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file in the `server/` directory:
+
 ```bash
 cp server/.env.example server/.env
-# Edit server/.env with your MongoDB URI, JWT secret, etc.
 ```
 
-**Required `.env` variables:**
+Edit `server/.env` with your values:
+
 ```env
-PORT=5000
 MONGODB_URI=mongodb://localhost:27017/whatsapp_flow_builder
-JWT_SECRET=your-secret-key
-ENCRYPTION_KEY=32-character-hex-string
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+ENCRYPTION_KEY=your-32-char-encryption-key-here
+PORT=5000
+NODE_ENV=development
 ```
 
-### 3. Seed the database
+| Variable | Description |
+|----------|-------------|
+| `MONGODB_URI` | MongoDB connection string |
+| `JWT_SECRET` | Secret key for JWT token signing (use a strong random string) |
+| `ENCRYPTION_KEY` | 32-character key for AES encryption of sensitive data |
+| `PORT` | Server port (default: 5000) |
+| `NODE_ENV` | Environment (`development` or `production`) |
+
+### 4. Seed the Database (Optional)
+
+Create an initial admin user:
+
 ```bash
-cd server && npx ts-node src/seed.ts
+cd server
+npm run seed
 ```
-Creates two users:
-- `admin@gmail.com` / `Admin@123` (ADMIN role)
-- `abhi@gmail.com` / `Abhi@123` (USER role)
 
-### 4. Run development servers
+### 5. Start Development Servers
+
+Open **two terminals**:
+
+**Terminal 1 — Backend:**
 ```bash
-# Terminal 1 - Backend
-cd server && npm run dev
-
-# Terminal 2 - Frontend
-cd client && npm run dev
+cd server
+npm run dev
 ```
 
-### 5. Connect WhatsApp
-1. Go to **Bot Settings** → **WhatsApp Connection**
-2. Enter your WhatsApp Business Phone Number ID and Access Token
-3. Set your webhook URL to: `https://your-domain.com/api/webhook/whatsapp`
+**Terminal 2 — Frontend:**
+```bash
+cd client
+npm run dev
+```
 
-## Tech Stack
+### 6. Open in Browser
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, React Flow, Redux Toolkit |
-| Backend | Express.js, TypeScript, Mongoose |
-| Database | MongoDB |
-| Auth | JWT + bcrypt |
-| APIs | WhatsApp Cloud API v24.0, OpenAI API |
-| Security | AES-256-CBC encryption, helmet, rate limiting, CORS |
+```
+http://localhost:5173
+```
 
-## API Reference
+> The Vite dev server automatically proxies `/api/*` requests to `localhost:5000`, so everything works seamlessly.
 
+---
+
+## 🌐 Deploying to Vercel
+
+This project is configured for **single-command Vercel deployment** — both frontend and backend deploy together.
+
+### 1. Push to GitHub
+
+Ensure your code is pushed to a GitHub repository.
+
+### 2. Import in Vercel
+
+1. Go to [vercel.com](https://vercel.com) and import your GitHub repository
+2. Vercel will auto-detect the `vercel.json` configuration
+
+### 3. Set Environment Variables
+
+In the Vercel dashboard → Project Settings → Environment Variables, add:
+
+| Variable | Value |
+|----------|-------|
+| `MONGODB_URI` | Your MongoDB Atlas connection string |
+| `JWT_SECRET` | A strong random secret key |
+| `ENCRYPTION_KEY` | 32-character encryption key |
+| `NODE_ENV` | `production` |
+| `CLIENT_URL` | Your Vercel deployment URL (e.g., `https://your-app.vercel.app`) |
+
+### 4. Deploy
+
+Click **Deploy** — Vercel will:
+1. Install dependencies for root, server, and client
+2. Build the React frontend (`client/dist/`)
+3. Deploy the Express API as a serverless function (`api/index.ts`)
+4. Route `/api/*` to the serverless function and everything else to the SPA
+
+### How It Works on Vercel
+
+```
+Incoming Request → Vercel Edge Network
+  ├── /api/*       → Serverless function (Express app)
+  ├── /assets/*    → Static files (Vite build output)
+  └── /*           → index.html (SPA client-side routing)
+```
+
+> **Note:** The delay node's cron job (`node-cron`) does not run in Vercel's serverless environment. For production use of delay nodes, consider using [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs) or an external scheduler.
+
+---
+
+## 📱 Connecting WhatsApp
+
+### Prerequisites
+- A [Meta Developer Account](https://developers.facebook.com/)
+- A Meta App with WhatsApp Business API enabled
+- A test phone number from Meta's dashboard
+
+### Steps
+
+1. **Create a bot** in the WA Flow Builder dashboard
+2. Go to **Bot Settings → WhatsApp Connection**
+3. Enter your **Phone Number ID**, **Access Token**, **Phone Number**, and a **Verify Token**
+4. Click **Save Settings**
+5. Copy the **Webhook URL** shown in the settings
+6. In Meta Developer Dashboard → WhatsApp → Configuration:
+   - Paste the Webhook URL as the **Callback URL**
+   - Enter the same **Verify Token**
+   - Subscribe to the `messages` webhook field
+7. Click **Check Connection** in the bot settings to verify
+
+---
+
+## 🧪 Testing Flows
+
+The built-in **Simulator** lets you test flows without sending real WhatsApp messages:
+
+1. Open the **Flow Builder** for any flow
+2. Click the **Test** button in the toolbar
+3. The simulator panel opens on the right
+4. Type messages and interact with buttons/lists just like on WhatsApp
+5. The simulator uses the same execution engine as production
+
+---
+
+## 📜 API Endpoints
+
+### Authentication
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth/login` | Login |
-| POST | `/api/auth/register` | Register |
-| GET | `/api/bots` | List user's bots |
-| POST | `/api/bots` | Create bot |
-| POST | `/api/bots/:id/whatsapp` | Connect WhatsApp |
-| GET | `/api/bots/:botId/flows` | List flows |
-| POST | `/api/bots/:botId/flows` | Create flow |
-| PUT | `/api/bots/:botId/flows/:id/draft` | Save draft |
-| POST | `/api/bots/:botId/flows/:id/deploy` | Deploy to production |
-| POST | `/api/bots/:botId/flows/:id/rollback` | Rollback version |
-| POST | `/api/simulator/message` | Test flow in simulator |
-| GET/POST | `/api/webhook/whatsapp` | WhatsApp webhook |
+| `POST` | `/api/auth/register` | Register a new user |
+| `POST` | `/api/auth/login` | Login and get JWT token |
+| `GET` | `/api/auth/me` | Get current user profile |
+| `PUT` | `/api/auth/profile` | Update profile |
+| `PUT` | `/api/auth/change-password` | Change password |
 
-## License
+### Bots
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/bots` | List all bots |
+| `POST` | `/api/bots` | Create a new bot |
+| `GET` | `/api/bots/:id` | Get bot details |
+| `PUT` | `/api/bots/:id` | Update bot |
+| `DELETE` | `/api/bots/:id` | Delete bot |
 
-MIT
+### Flows
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/bots/:botId/flows` | List flows for a bot |
+| `POST` | `/api/bots/:botId/flows` | Create a new flow |
+| `GET` | `/api/bots/:botId/flows/:flowId` | Get flow with versions |
+| `PUT` | `/api/bots/:botId/flows/:flowId/draft` | Save draft |
+| `POST` | `/api/bots/:botId/flows/:flowId/validate` | Validate flow |
+| `POST` | `/api/bots/:botId/flows/:flowId/deploy` | Deploy to production |
+| `POST` | `/api/bots/:botId/flows/:flowId/rollback` | Rollback to a version |
+| `GET` | `/api/bots/:botId/flows/:flowId/versions` | List all versions |
+
+### Webhooks
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/webhook/whatsapp/:botId` | WhatsApp webhook verification |
+| `POST` | `/api/webhook/whatsapp/:botId` | Receive WhatsApp messages |
+
+### Health
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Server health check |
+
+---
+
+## 🛠️ Available Scripts
+
+### Server (`/server`)
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `npm run dev` | Start dev server with hot reload (tsx watch) |
+| `build` | `npm run build` | Compile TypeScript to JavaScript |
+| `start` | `npm run start` | Run compiled production server |
+| `seed` | `npm run seed` | Seed database with initial admin user |
+
+### Client (`/client`)
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `npm run dev` | Start Vite dev server with HMR |
+| `build` | `npm run build` | Build for production |
+| `preview` | `npm run preview` | Preview production build locally |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
