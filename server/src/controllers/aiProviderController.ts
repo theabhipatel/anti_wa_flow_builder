@@ -59,21 +59,33 @@ export const listProviders = async (req: Request, res: Response): Promise<void> 
         const userId = req.user!.userId;
         const providers = await AIProvider.find({ userId }).sort({ createdAt: -1 });
 
-        const masked = providers.map((p) => ({
-            _id: p._id,
-            name: p.name,
-            provider: p.provider,
-            baseUrl: p.baseUrl,
-            defaultModel: p.defaultModel,
-            isActive: p.isActive,
-            maskedKey: maskApiKey(decrypt(p.apiKey)),
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-        }));
+        const masked = providers.map((p) => {
+            let maskedKey = '****';
+            try {
+                const decryptedKey = decrypt(p.apiKey);
+                if (decryptedKey) {
+                    maskedKey = maskApiKey(decryptedKey);
+                }
+            } catch (decryptErr) {
+                console.error(`[AI Provider] Failed to decrypt key for provider "${p.name}" (${p._id}):`, decryptErr);
+            }
+            return {
+                _id: p._id,
+                name: p.name,
+                provider: p.provider,
+                baseUrl: p.baseUrl,
+                defaultModel: p.defaultModel,
+                isActive: p.isActive,
+                maskedKey,
+                createdAt: p.createdAt,
+                updatedAt: p.updatedAt,
+            };
+        });
 
         res.json({ success: true, data: masked });
-    } catch (error) {
-        console.error('[AI Provider] List error:', error);
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('[AI Provider] List error:', errMsg, error);
         res.status(500).json({ success: false, error: 'Failed to list providers' });
     }
 };
